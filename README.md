@@ -3,7 +3,7 @@
 ## Estrutura de Arquivos
 
 ```text
-bd/
+Doceria-main/
 ├── src/
 │   ├── models/           
 │   │   ├── Cliente.ts
@@ -20,7 +20,7 @@ bd/
 ## Como Executar
 
 1. Certifique-se de ter o [Node.js](https://nodejs.org/) instalado.
-2. No diretório raiz (`bd/`), instale as dependências:
+2. No diretório raiz (`Doceria-main/`), instale as dependências:
    ```bash
    npm install
    ```
