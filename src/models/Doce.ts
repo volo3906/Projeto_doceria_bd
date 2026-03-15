@@ -4,15 +4,25 @@ export class Doce {
   private categoria: string;
   private preco: number;
   private quantidadeEstoque: number;
+  private fabricadoEmMari: boolean;
 
-  constructor(nome: string, categoria: string, preco: number, quantidade: number, id?: number) {
+  constructor(
+    nome: string,
+    categoria: string,
+    preco: number,
+    quantidade: number,
+    fabricadoEmMari: boolean = false,
+    id?: number
+  ) {
     this.id = id;
     this.nome = nome;
     this.categoria = categoria;
     this.preco = preco;
     this.quantidadeEstoque = quantidade;
+    this.fabricadoEmMari = fabricadoEmMari;
   }
 
+  // getters
   getId(): number | undefined {
     return this.id;
   }
@@ -33,6 +43,19 @@ export class Doce {
     return this.quantidadeEstoque;
   }
 
+  getFabricadoEmMari(): boolean {
+    return this.fabricadoEmMari;
+  }
+
+  // setters
+  setNome(novoNome: string): void {
+    this.nome = novoNome;
+  }
+
+  setCategoria(novaCategoria: string): void {
+    this.categoria = novaCategoria;
+  }
+
   setPreco(novoPreco: number): void {
     if (novoPreco >= 0) {
       this.preco = novoPreco;
@@ -43,6 +66,22 @@ export class Doce {
     if (novaQuantidade >= 0) {
       this.quantidadeEstoque = novaQuantidade;
     }
+  }
+
+  setFabricadoEmMari(valor: boolean): void {
+    this.fabricadoEmMari = valor;
+  }
+
+  // converte para objeto simples (usado na API)
+  toObject() {
+    return {
+      id: this.id,
+      nome: this.nome,
+      categoria: this.categoria,
+      preco: this.preco,
+      estoque: this.quantidadeEstoque,
+      fabricadoEmMari: this.fabricadoEmMari,
+    };
   }
 
   exibirDetalhes(): void {
