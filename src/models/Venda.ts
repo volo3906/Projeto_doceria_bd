@@ -46,6 +46,18 @@ export class Venda {
     return this.dataVenda;
   }
 
+  // converte para objeto simples (usado na API)
+  toObject() {
+    return {
+      id: this.id,
+      clienteId: this.clienteId,
+      doceId: this.doceId,
+      quantidade: this.quantidade,
+      valorTotal: this.valorTotal,
+      dataVenda: this.dataVenda,
+    };
+  }
+
   exibirDetalhes(): void {
     const idDisplay = this.id ? `ID: ${this.id}` : "ID: (Novo)";
     console.log(`[Venda ${idDisplay}] Data: ${this.dataVenda}`);
