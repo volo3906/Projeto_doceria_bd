@@ -563,3 +563,55 @@ Projeto_doceria_bd/
 | Preco nao-negativo | `Doce.setPreco()` | So altera se `novoPreco >= 0` |
 | Quantidade nao-negativa | `Doce.setQuantidade()` | So altera se `novaQuantidade >= 0` |
 | CPF imutavel | Frontend (dialog) | Campo CPF e desabilitado no modo de edicao |
+
+---
+
+## 14. Conformidade com a Especificacao — Parte 1
+
+Mapeamento de cada requisito da Parte 1 da especificacao para o que foi implementado:
+
+| # | Requisito | Implementacao | Onde |
+|---|-----------|---------------|------|
+| 1.1 | Inserir | `POST /api/doces`, `POST /api/clientes`, `POST /api/vendas` + formularios na UI | API routes + paginas `/doces`, `/clientes`, `/vendas` |
+| 1.2 | Alterar | `PUT /api/doces/[id]`, `PUT /api/clientes/[id]` + botao de editar na tabela | API routes `[id]/` + dialogs de edicao |
+| 1.3 | Pesquisar por nome | `GET /api/doces?nome=X`, `GET /api/clientes?nome=X` (case-insensitive, busca parcial) | Barra de pesquisa nas paginas `/doces` e `/clientes` |
+| 1.4 | Remover | `DELETE /api/doces/[id]`, `DELETE /api/clientes/[id]` + confirmacao antes de executar | Botao de lixeira na tabela |
+| 1.5 | Listar todos | `GET /api/doces`, `GET /api/clientes`, `GET /api/vendas` | Tabelas nas paginas `/doces`, `/clientes`, `/vendas` |
+| 1.6 | Exibir um | `GET /api/doces/[id]`, `GET /api/clientes/[id]` + dialog de detalhes | Botao de olho na tabela abre dialog |
+| 2 | Diagrama UML | Estrutura definida (3 entidades + 1 gerenciadora, 5 relacoes) | Entrega separada |
+| 3 | Classe gerenciadora | `GerenciadorDoceria` com 22 metodos gerenciando todo o CRUD | `src/services/GerenciadorDoceria.ts` |
+| 4 | Objeto com 4+ atributos | Doce: 6 atributos, Cliente: 8 atributos, Venda: 6 atributos | `src/models/` |
+| 5 | Bastante metodos | Doce: 14, Cliente: 13, Venda: 8, Gerenciador: 22 = **57 metodos totais** | `src/models/` + `src/services/` |
+| 6 | Relatorios separados | 3 secoes: Estoque (produtos + valor + alerta), Clientes (compras + gasto), Vendas (total + ticket medio) | Pagina `/relatorios` |
+
+---
+
+## 15. Preparacao para a Parte 2
+
+Alguns campos e funcionalidades foram adicionados antecipadamente para evitar refatoracao quando a Parte 2 for implementada. Abaixo, o mapeamento entre o que a especificacao pede e o que ja foi preparado.
+
+### Ja implementado
+
+| Requisito da especificacao | O que foi feito | Motivo de adiantar |
+|---------------------------|-----------------|-------------------|
+| *"Clientes que torcem flamengo, assistem one piece e/ou sao de sousa possuem desconto nas compras"* | Campos `torceFlamengo`, `assisteOnePiece`, `deSousa` no model Cliente + checkboxes na interface + metodo `temDesconto()` + badge "Desconto" na tabela | Os campos precisam existir no model e na UI. Adiantar evita ter que modificar constructor, getters/setters, formulario e tabela depois |
+| *"Verificar produtos [...] se foram fabricados em Mari"* | Campo `fabricadoEmMari` no model Doce + checkbox na interface + badge "Mari" na tabela | Mesmo motivo: campo no model + UI e mais facil adicionar agora do que refatorar depois |
+| *"Caso o produto nao tenha mais estoque, uma compra nao deve ser efetivada"* | Metodo `Doce.vender()` ja verifica estoque antes de descontar. `GerenciadorDoceria.registrarVenda()` retorna erro se estoque insuficiente. API retorna HTTP 400 | Logica de negocio central que ja existia no projeto original (metodo `vender()`), apenas adaptada para retornar erro em vez de imprimir no console |
+| *"Verificar produtos por nome [...] categoria"* | Busca por nome (`buscarDocesPorNome`) e por categoria (`buscarDocesPorCategoria`) no gerenciador | Metodos de busca necessarios para a Parte 1 (pesquisar por nome) e uteis para filtros da Parte 2 |
+| *"Filtrar pelos produtos que possuem menos que 5 unidades"* | Badge vermelha na tabela quando `estoque < 5` + contador de "Estoque Baixo" no relatorio | Indicador visual ja pronto, falta apenas o filtro dedicado para funcionarios |
+| *"Interface grafica web"* | Interface web completa com 5 paginas, sidebar, tema visual, componentes reutilizaveis | A Parte 2 exige interface grafica. Escolhemos web com Next.js |
+| *"Cliente deve poder verificar seus dados cadastrais"* | Dialog de detalhes mostra todos os 8 campos do cliente (incluindo flags de desconto) | Visualizacao individual ja atende o requisito de consulta de dados cadastrais |
+
+### Ainda nao implementado (fica para a Parte 2)
+
+| Requisito | O que falta | Depende de |
+|-----------|-------------|------------|
+| *"Cada compra possui um ou mais itens"* | Entidades `Compra` + `ItemCompra` com relacao N:N com Doce | Modelagem relacional no PostgreSQL |
+| *"Compra efetivada por um vendedor"* | Entidade `Vendedor` com relacao com Compra | Nova entidade + tabela |
+| *"Forma de pagamento (cartao, boleto, pix ou berries)"* | Entidade `Pagamento` com tipo e status de confirmacao | Nova entidade + tabela |
+| *"Logica de calculo de desconto"* | Aplicar desconto no valor da compra baseado nas flags do cliente | Os campos ja existem, falta a regra de calculo |
+| *"Filtro por faixa de preco"* | Endpoint com parametros `precoMin` e `precoMax` | Novo endpoint ou query |
+| *"Relatorio mensal por vendedor"* | Agrupamento de vendas por vendedor e mes | Depende da entidade Vendedor + datas |
+| *"View e stored procedure"* | SQL no PostgreSQL | Migracao para banco de dados |
+| *"Indices e restricoes de integridade referencial"* | DDL com CREATE INDEX, FOREIGN KEY, etc. | Migracao para banco de dados |
+| *"Persistencia"* | Migrar de arrays em memoria para tabelas PostgreSQL | Mudanca de infraestrutura |
