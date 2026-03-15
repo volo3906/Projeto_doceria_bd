@@ -80,11 +80,11 @@ Representa uma venda realizada.
 
 Classe central que gerencia todas as operacoes do sistema. Trabalha internamente com instancias das classes OOP e retorna objetos simples (via `toObject()`) para a API.
 
-**Total de metodos:** 22
+**Total de metodos:** 24
 
 | Grupo | Metodos | Operacoes |
 |-------|---------|-----------|
-| Doces | 10 | listar, buscar por ID, buscar por nome, buscar por categoria, cadastrar, atualizar, remover, contar, calcular valor estoque |
+| Doces | 9 | listar, buscar por ID, buscar por nome, buscar por categoria, cadastrar, atualizar, remover, contar, calcular valor estoque |
 | Clientes | 8 | listar, buscar por ID, buscar por nome, buscar por CPF, cadastrar, atualizar, remover, contar |
 | Vendas | 6 | listar, buscar por ID, buscar por cliente, registrar, contar, calcular total vendido |
 | Relatorios | 1 | gerar relatorio geral (totais + valores) |
@@ -186,11 +186,11 @@ O sistema usa 16 componentes da biblioteca shadcn/ui (badge, button, card, dialo
 ```
 src/
 ├── models/                        # Entidades OOP
-│   ├── Doce.ts                    # 6 atributos, 14 metodos
-│   ├── Cliente.ts                 # 8 atributos, 13 metodos
+│   ├── Doce.ts                    # 6 atributos, 16 metodos
+│   ├── Cliente.ts                 # 8 atributos, 17 metodos
 │   └── Venda.ts                   # 6 atributos, 8 metodos
 ├── services/
-│   └── GerenciadorDoceria.ts      # 22 metodos, gerencia todo o CRUD
+│   └── GerenciadorDoceria.ts      # 24 metodos, gerencia todo o CRUD
 ├── lib/
 │   ├── dados.ts                   # Singleton do gerenciador (globalThis)
 │   ├── types.ts                   # Interfaces TypeScript (Doce, Cliente, Venda)
@@ -225,5 +225,6 @@ src/
 | Documento | Caminho | Descricao |
 |-----------|---------|-----------|
 | Estado Atual | `docs/public/ESTADO-ATUAL.md` | Este documento — visao geral atualizada do projeto |
+| Diagrama UML | `docs/public/DIAGRAMA-UML.md` | Diagrama de classes com legenda, contagens e relacionamentos |
 | Como Rodar | `docs/public/COMO-RODAR.md` | Guia passo a passo para rodar o projeto localmente |
 | Changelogs | `docs/public/changelog/` | Historico de mudancas com datas |
