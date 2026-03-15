@@ -1,6 +1,6 @@
-# Changelog — Interface Web (branch `feature/web-interface`)
+# Changelog — Interface Web (15/03/2026)
 
-Documento detalhando todas as mudancas realizadas na branch `feature/web-interface` em relacao ao estado anterior do projeto (branch `main`).
+Documento detalhando todas as mudancas realizadas para transformar o projeto console em aplicacao web.
 
 ---
 
@@ -8,7 +8,7 @@ Documento detalhando todas as mudancas realizadas na branch `feature/web-interfa
 
 O projeto partiu de uma aplicacao console (terminal) com classes OOP em TypeScript e foi transformado em uma **aplicacao web completa** usando Next.js, mantendo toda a logica orientada a objetos original. As classes `Doce`, `Cliente` e `Venda` continuam sendo usadas internamente — a interface web se comunica com elas atraves de uma API REST.
 
-### O que existia antes (branch `main`)
+### O que existia antes
 
 - Aplicacao de terminal (`src/index.ts`) com menu interativo via `readline`
 - 3 classes OOP: `Doce`, `Cliente`, `Venda` (com atributos `private` e getters/setters)
@@ -16,7 +16,7 @@ O projeto partiu de uma aplicacao console (terminal) com classes OOP em TypeScri
 - Dependencias: apenas `typescript` e `ts-node`
 - Execucao: `ts-node src/index.ts`
 
-### O que existe agora (branch `feature/web-interface`)
+### O que existe agora
 
 - Aplicacao web completa com interface grafica (Next.js + React)
 - As mesmas 3 classes OOP, agora ampliadas com novos atributos e metodos
