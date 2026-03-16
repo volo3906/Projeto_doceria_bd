@@ -15,7 +15,7 @@ Resumo rapido:
 ```bash
 npm install
 npm run dev
-# acesse http://localhost:3000
+# acesse http://localhost:3303
 ```
 
 ---

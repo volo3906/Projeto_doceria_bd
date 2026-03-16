@@ -47,8 +47,8 @@ Vai aparecer algo assim no terminal:
 
 ```
   ▲ Next.js 16.1.6
-  - Local:    http://localhost:3000
-  - Network:  http://192.168.x.x:3000
+  - Local:    http://localhost:3303
+  - Network:  http://192.168.x.x:3303
 
  ✓ Starting...
  ✓ Ready in 2.5s
@@ -56,7 +56,7 @@ Vai aparecer algo assim no terminal:
 
 ### 4. Abrir no navegador
 
-Acesse: **http://localhost:3000**
+Acesse: **http://localhost:3303**
 
 Pronto! O sistema vai abrir com o dashboard da Doceria Gourmet.
 
@@ -64,13 +64,13 @@ Pronto! O sistema vai abrir com o dashboard da Doceria Gourmet.
 
 ## Rodando em outra porta
 
-Se a porta 3000 ja estiver em uso, rode em outra porta:
+Se a porta 3303 ja estiver em uso, rode em outra porta:
 
 ```bash
-npm run dev -- -p 3303
+npm run dev -- -p 4000
 ```
 
-Ai o acesso fica em: **http://localhost:3303**
+Ai o acesso fica em: **http://localhost:4000**
 
 ---
 
@@ -94,28 +94,28 @@ Se quiser testar os endpoints sem usar a interface, pode usar `curl` no terminal
 
 ```bash
 # listar todos os doces
-curl http://localhost:3000/api/doces
+curl http://localhost:3303/api/doces
 
 # cadastrar um doce
-curl -X POST http://localhost:3000/api/doces \
+curl -X POST http://localhost:3303/api/doces \
   -H "Content-Type: application/json" \
   -d '{"nome":"Brigadeiro","categoria":"Chocolate","preco":4,"estoque":50}'
 
 # listar todos os clientes
-curl http://localhost:3000/api/clientes
+curl http://localhost:3303/api/clientes
 
 # cadastrar um cliente
-curl -X POST http://localhost:3000/api/clientes \
+curl -X POST http://localhost:3303/api/clientes \
   -H "Content-Type: application/json" \
   -d '{"nome":"Joao","cpf":"123.456.789-00","email":"joao@email.com","telefone":"(83) 99999-0001"}'
 
 # registrar uma venda
-curl -X POST http://localhost:3000/api/vendas \
+curl -X POST http://localhost:3303/api/vendas \
   -H "Content-Type: application/json" \
   -d '{"clienteId":1,"doceId":1,"quantidade":5}'
 
 # ver relatorio geral
-curl http://localhost:3000/api/relatorio
+curl http://localhost:3303/api/relatorio
 ```
 
 ---
@@ -129,10 +129,10 @@ curl http://localhost:3000/api/relatorio
 - **Erros de porta em uso**: se aparecer `EADDRINUSE`, significa que algo ja esta usando a porta. Pode matar o processo anterior:
   ```bash
   # no Linux/Mac
-  lsof -ti:3000 | xargs kill
+  lsof -ti:3303 | xargs kill
 
   # ou rode em outra porta
-  npm run dev -- -p 3303
+  npm run dev -- -p 4000
   ```
 
 ---
