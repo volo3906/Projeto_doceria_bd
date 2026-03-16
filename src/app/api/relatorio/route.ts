@@ -3,5 +3,5 @@ import gerenciador from "@/lib/dados";
 
 // GET /api/relatorio
 export async function GET() {
-  return NextResponse.json(gerenciador.gerarRelatorio());
+  return NextResponse.json(await gerenciador.gerarRelatorio());
 }

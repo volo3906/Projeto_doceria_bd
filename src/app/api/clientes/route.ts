@@ -7,11 +7,11 @@ export async function GET(request: Request) {
   const nome = searchParams.get("nome");
 
   if (nome) {
-    const resultado = gerenciador.buscarClientesPorNome(nome);
+    const resultado = await gerenciador.buscarClientesPorNome(nome);
     return NextResponse.json(resultado);
   }
 
-  return NextResponse.json(gerenciador.listarClientes());
+  return NextResponse.json(await gerenciador.listarClientes());
 }
 
 // POST /api/clientes
@@ -23,11 +23,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ erro: "Campos obrigatorios faltando" }, { status: 400 });
   }
 
-  const novo = gerenciador.cadastrarCliente(
-    nome, cpf, email, telefone,
-    torceFlamengo || false,
-    assisteOnePiece || false,
-    deSousa || false
-  );
-  return NextResponse.json(novo, { status: 201 });
+  try {
+    const novo = await gerenciador.cadastrarCliente(
+      nome, cpf, email, telefone,
+      torceFlamengo || false,
+      assisteOnePiece || false,
+      deSousa || false
+    );
+    return NextResponse.json(novo, { status: 201 });
+  } catch (erro: any) {
+    if (erro.code === "23505") {
+      return NextResponse.json({ erro: "CPF ja cadastrado" }, { status: 400 });
+    }
+    return NextResponse.json({ erro: "Erro interno" }, { status: 500 });
+  }
 }

@@ -3,7 +3,7 @@ import gerenciador from "@/lib/dados";
 
 // GET /api/vendas
 export async function GET() {
-  return NextResponse.json(gerenciador.listarVendas());
+  return NextResponse.json(await gerenciador.listarVendas());
 }
 
 // POST /api/vendas
@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ erro: "Campos obrigatorios faltando" }, { status: 400 });
   }
 
-  const resultado = gerenciador.registrarVenda(Number(clienteId), Number(doceId), Number(quantidade));
+  const resultado = await gerenciador.registrarVenda(Number(clienteId), Number(doceId), Number(quantidade));
 
   // se retornou string, eh uma mensagem de erro
   if (typeof resultado === "string") {
