@@ -11,10 +11,11 @@ O sistema Doceria Gourmet e uma aplicacao web para gerenciamento de uma doceria.
 **Stack atual:**
 - Backend: Next.js 16 (API Routes) + TypeScript
 - Frontend: React 19 + Tailwind CSS 4 + shadcn/ui
-- Banco de dados: em memoria (arrays na classe GerenciadorDoceria)
-- OOP: classes com atributos `private`, getters, setters e metodos de negocio
+- Banco de dados: PostgreSQL 16 (Docker Compose, porta 5433)
+- Conexao: biblioteca `pg` (node-postgres) com pool de conexoes
+- OOP: classes de modelo mantidas no repositorio (avaliadas na Parte 1)
 
-**Status:** funcional, sem persistencia em banco de dados.
+**Status:** funcional, com persistencia em PostgreSQL.
 
 ---
 
@@ -78,18 +79,19 @@ Representa uma venda realizada.
 
 ## GerenciadorDoceria
 
-Classe central que gerencia todas as operacoes do sistema. Trabalha internamente com instancias das classes OOP e retorna objetos simples (via `toObject()`) para a API.
+Classe central que gerencia todas as operacoes do sistema. Conecta no PostgreSQL via pool de conexoes e retorna objetos formatados (mapeamento `snake_case` → `camelCase`).
 
-**Total de metodos:** 24
+**Total de metodos:** 24 (todos `async`) + 3 helpers privados
 
 | Grupo | Metodos | Operacoes |
 |-------|---------|-----------|
 | Doces | 9 | listar, buscar por ID, buscar por nome, buscar por categoria, cadastrar, atualizar, remover, contar, calcular valor estoque |
 | Clientes | 8 | listar, buscar por ID, buscar por nome, buscar por CPF, cadastrar, atualizar, remover, contar |
-| Vendas | 6 | listar, buscar por ID, buscar por cliente, registrar, contar, calcular total vendido |
-| Relatorios | 1 | gerar relatorio geral (totais + valores) |
+| Vendas | 6 | listar, buscar por ID, buscar por cliente, registrar (com transacao), contar, calcular total vendido |
+| Relatorios | 1 | gerar relatorio geral (totais + valores, queries em paralelo) |
+| Helpers | 3 | formatarDoce, formatarCliente, formatarVenda (privados) |
 
-**Instancia unica:** o sistema usa o padrao singleton via `globalThis` (`src/lib/dados.ts`) para garantir que todas as rotas da API compartilham a mesma instancia.
+**Instancia unica:** `src/lib/dados.ts` exporta uma instancia do gerenciador. A classe agora e stateless (dados no banco), entao nao precisa mais do `globalThis`.
 
 ---
 
@@ -163,59 +165,73 @@ O sistema usa 16 componentes da biblioteca shadcn/ui (badge, button, card, dialo
 
 | Regra | Descricao | Onde e verificada |
 |-------|-----------|-------------------|
-| Validacao de estoque | Uma venda so e registrada se houver estoque suficiente | `Doce.vender()` |
+| Validacao de estoque | Uma venda so e registrada se houver estoque suficiente | `GerenciadorDoceria.registrarVenda()` (transacao com FOR UPDATE) |
 | Cliente obrigatorio na venda | O cliente precisa existir para registrar uma venda | `GerenciadorDoceria.registrarVenda()` |
 | Doce obrigatorio na venda | O doce precisa existir para registrar uma venda | `GerenciadorDoceria.registrarVenda()` |
-| Campos obrigatorios | Doce: nome, categoria, preco, estoque. Cliente: nome, cpf, email, telefone | API routes (POST) |
+| Campos obrigatorios | Doce: nome, categoria, preco, estoque. Cliente: nome, cpf, email, telefone | API routes (POST) + constraints NOT NULL no banco |
+| CPF unico | Nao pode cadastrar dois clientes com o mesmo CPF | Constraint UNIQUE no banco (erro 23505) |
 | CPF imutavel | O CPF de um cliente nao pode ser alterado depois do cadastro | Frontend (campo desabilitado na edicao) |
-| Preco nao-negativo | O preco so e alterado se o novo valor for >= 0 | `Doce.setPreco()` |
-| Quantidade nao-negativa | A quantidade so e alterada se o novo valor for >= 0 | `Doce.setQuantidade()` |
+| Preco nao-negativo | O preco nao pode ser negativo | CHECK constraint no banco (`preco >= 0`) |
+| Quantidade nao-negativa | O estoque nao pode ser negativo | CHECK constraint no banco (`estoque >= 0`) |
+| Integridade referencial | Nao e possivel deletar um doce ou cliente que tem vendas | FK com ON DELETE RESTRICT (erro 23503) |
 
 ---
 
 ## Persistencia de Dados
 
-**Situacao atual:** os dados ficam em memoria (arrays dentro do `GerenciadorDoceria`). Quando o servidor e parado e reiniciado, todos os dados sao perdidos.
+**Situacao atual:** os dados sao persistidos em PostgreSQL 16. O banco roda em um container Docker (porta 5433) e os dados sobrevivem a reinicializacoes do servidor e do container.
 
-**Proximos passos (planejado):** migrar para PostgreSQL com tabelas, indices, views e stored procedures. Os IDs passarao a ser gerados pelo banco (SERIAL ou GENERATED ALWAYS AS IDENTITY).
+**Detalhes:**
+- 3 tabelas: `doces`, `clientes`, `vendas`
+- IDs gerados pelo banco (`SERIAL`)
+- Constraints de integridade: PK, FK (ON DELETE RESTRICT), UNIQUE (CPF), CHECK (preco, estoque, quantidade)
+- Seed data: 5 doces e 3 clientes inseridos automaticamente na criacao do banco
+- Documentacao completa do banco: `docs/public/database/BANCO-DE-DADOS.md`
 
 ---
 
 ## Estrutura de Pastas
 
 ```
-src/
-├── models/                        # Entidades OOP
-│   ├── Doce.ts                    # 6 atributos, 16 metodos
-│   ├── Cliente.ts                 # 8 atributos, 17 metodos
-│   └── Venda.ts                   # 6 atributos, 8 metodos
-├── services/
-│   └── GerenciadorDoceria.ts      # 24 metodos, gerencia todo o CRUD
-├── lib/
-│   ├── dados.ts                   # Singleton do gerenciador (globalThis)
-│   ├── types.ts                   # Interfaces TypeScript (Doce, Cliente, Venda)
-│   └── utils.ts                   # Funcao cn() para classes CSS
-├── app/
-│   ├── api/                       # 7 endpoints REST
-│   │   ├── doces/route.ts         # GET + POST
-│   │   ├── doces/[id]/route.ts    # GET + PUT + DELETE
-│   │   ├── clientes/route.ts      # GET + POST
-│   │   ├── clientes/[id]/route.ts # GET + PUT + DELETE
-│   │   ├── vendas/route.ts        # GET + POST
-│   │   └── relatorio/route.ts     # GET
-│   ├── page.tsx                   # Home (Dashboard)
-│   ├── doces/page.tsx             # Pagina de Doces
-│   ├── clientes/page.tsx          # Pagina de Clientes
-│   ├── vendas/page.tsx            # Pagina de Vendas
-│   ├── relatorios/page.tsx        # Pagina de Relatorios
-│   ├── layout.tsx                 # Layout raiz (fonte Inter)
-│   └── globals.css                # Tema rosa/pink (hue 350)
-├── components/
-│   ├── AppLayout.tsx              # Wrapper com sidebar + sonner
-│   ├── AppSidebar.tsx             # Menu lateral de navegacao
-│   └── ui/                        # 16 componentes shadcn/ui
-└── hooks/
-    └── use-mobile.ts              # Detecta tela mobile
+Projeto_doceria_bd/
+├── docker-compose.yml             # Container PostgreSQL 16 (porta 5433)
+├── sql/
+│   └── init.sql                   # Schema + seed data (executado no 1o start)
+├── .env.example                   # Template de credenciais (commitado)
+├── .env                           # Credenciais reais (gitignored)
+└── src/
+    ├── models/                    # Entidades OOP (mantidas da Parte 1)
+    │   ├── Doce.ts                # 6 atributos, 16 metodos
+    │   ├── Cliente.ts             # 8 atributos, 17 metodos
+    │   └── Venda.ts               # 6 atributos, 8 metodos
+    ├── services/
+    │   └── GerenciadorDoceria.ts  # 24 metodos async + 3 helpers (SQL queries)
+    ├── lib/
+    │   ├── db.ts                  # Pool de conexao PostgreSQL (pg)
+    │   ├── dados.ts               # Instancia do gerenciador
+    │   ├── types.ts               # Interfaces TypeScript (Doce, Cliente, Venda)
+    │   └── utils.ts               # Funcao cn() para classes CSS
+    ├── app/
+    │   ├── api/                   # 7 endpoints REST
+    │   │   ├── doces/route.ts     # GET + POST
+    │   │   ├── doces/[id]/route.ts    # GET + PUT + DELETE
+    │   │   ├── clientes/route.ts      # GET + POST
+    │   │   ├── clientes/[id]/route.ts # GET + PUT + DELETE
+    │   │   ├── vendas/route.ts        # GET + POST
+    │   │   └── relatorio/route.ts     # GET
+    │   ├── page.tsx               # Home (Dashboard)
+    │   ├── doces/page.tsx         # Pagina de Doces
+    │   ├── clientes/page.tsx      # Pagina de Clientes
+    │   ├── vendas/page.tsx        # Pagina de Vendas
+    │   ├── relatorios/page.tsx    # Pagina de Relatorios
+    │   ├── layout.tsx             # Layout raiz (fonte Inter)
+    │   └── globals.css            # Tema rosa/pink (hue 350)
+    ├── components/
+    │   ├── AppLayout.tsx          # Wrapper com sidebar + sonner
+    │   ├── AppSidebar.tsx         # Menu lateral de navegacao
+    │   └── ui/                    # 16 componentes shadcn/ui
+    └── hooks/
+        └── use-mobile.ts          # Detecta tela mobile
 ```
 
 ---
@@ -226,5 +242,6 @@ src/
 |-----------|---------|-----------|
 | Estado Atual | `docs/public/ESTADO-ATUAL.md` | Este documento — visao geral atualizada do projeto |
 | Diagrama UML | `docs/public/DIAGRAMA-UML.md` | Diagrama de classes com legenda, contagens e relacionamentos |
+| Banco de Dados | `docs/public/database/BANCO-DE-DADOS.md` | Arquitetura, schema, constraints e configuracao do PostgreSQL |
 | Como Rodar | `docs/public/COMO-RODAR.md` | Guia passo a passo para rodar o projeto localmente |
 | Changelogs | `docs/public/changelog/` | Historico de mudancas com datas |

@@ -8,15 +8,22 @@ Guia para subir o sistema Doceria Gourmet no localhost.
 
 - **Node.js** versao 18 ou superior (recomendado: 22+)
 - **npm** (ja vem junto com o Node.js)
+- **Docker** e **Docker Compose** (para rodar o PostgreSQL)
 
 Para verificar se ja tem instalado:
 
 ```bash
 node -v
 npm -v
+docker --version
+docker compose version
 ```
 
-Se nao tiver, baixe em: https://nodejs.org (usar a versao LTS)
+Se nao tiver Node.js, baixe em: https://nodejs.org (usar a versao LTS)
+
+Se nao tiver Docker, baixe em: https://docs.docker.com/get-docker/
+
+> **Nota:** se voce esta conectando em um banco PostgreSQL remoto (ex: na VPS de outro membro do grupo), **nao precisa** instalar Docker. Basta configurar o `.env` com o IP do servidor.
 
 ---
 
@@ -37,7 +44,29 @@ npm install
 
 Isso vai criar a pasta `node_modules/` com todas as bibliotecas necessarias. Pode demorar um pouco na primeira vez.
 
-### 3. Rodar o servidor de desenvolvimento
+### 3. Configurar o banco de dados
+
+Copie o arquivo de template e preencha com as credenciais:
+
+```bash
+cp .env.example .env
+```
+
+Edite o `.env` e troque `TROCAR_PELA_SENHA_REAL` pela senha real do banco.
+
+Se voce esta rodando o banco **localmente** (Docker na sua maquina):
+
+```bash
+# subir o PostgreSQL
+docker compose up -d
+
+# verificar se subiu
+docker compose ps
+```
+
+Se voce esta conectando em um banco **remoto** (VPS), troque `localhost` pelo IP do servidor no `DATABASE_URL` do `.env`.
+
+### 4. Rodar o servidor de desenvolvimento
 
 ```bash
 npm run dev
@@ -54,7 +83,7 @@ Vai aparecer algo assim no terminal:
  ✓ Ready in 2.5s
 ```
 
-### 4. Abrir no navegador
+### 5. Abrir no navegador
 
 Acesse: **http://localhost:3303**
 
@@ -122,9 +151,9 @@ curl http://localhost:3303/api/relatorio
 
 ## Observacoes Importantes
 
-- **Dados em memoria**: os dados ficam na memoria do servidor. Quando voce para o `npm run dev` (Ctrl+C) e inicia de novo, todos os dados sao perdidos. Futuramente vamos usar PostgreSQL para persistir os dados.
+- **Dados persistentes**: os dados ficam no PostgreSQL. Mesmo que voce pare o `npm run dev` (Ctrl+C) e inicie de novo, todos os dados continuam la. Para resetar os dados, precisa recriar o container: `docker compose down -v && docker compose up -d`.
 
-- **Hot reload**: durante o desenvolvimento, quando voce edita um arquivo e salva, o navegador atualiza automaticamente. Os dados em memoria sao preservados enquanto o servidor estiver rodando.
+- **Hot reload**: durante o desenvolvimento, quando voce edita um arquivo e salva, o navegador atualiza automaticamente.
 
 - **Erros de porta em uso**: se aparecer `EADDRINUSE`, significa que algo ja esta usando a porta. Pode matar o processo anterior:
   ```bash
@@ -135,23 +164,29 @@ curl http://localhost:3303/api/relatorio
   npm run dev -- -p 4000
   ```
 
+- **Banco nao conecta**: verifique se o container Docker esta rodando (`docker compose ps`) e se o `.env` tem as credenciais corretas. Se estiver conectando remotamente, verifique se o IP e a porta estao corretos.
+
 ---
 
 ## Estrutura Rapida
 
 ```
-src/
-├── models/          ← classes OOP (Doce, Cliente, Venda)
-├── services/        ← GerenciadorDoceria (logica de negocio)
-├── lib/             ← singleton, types, utils
-├── app/
-│   ├── api/         ← endpoints REST
-│   ├── page.tsx     ← pagina Home
-│   ├── doces/       ← pagina de Doces
-│   ├── clientes/    ← pagina de Clientes
-│   ├── vendas/      ← pagina de Vendas
-│   └── relatorios/  ← pagina de Relatorios
-└── components/      ← componentes React reutilizaveis
+Projeto_doceria_bd/
+├── docker-compose.yml  ← container PostgreSQL
+├── sql/init.sql        ← schema + dados iniciais
+├── .env.example        ← template de credenciais
+└── src/
+    ├── models/         ← classes OOP (Doce, Cliente, Venda)
+    ├── services/       ← GerenciadorDoceria (queries SQL)
+    ├── lib/            ← pool de conexao, singleton, types, utils
+    ├── app/
+    │   ├── api/        ← endpoints REST
+    │   ├── page.tsx    ← pagina Home
+    │   ├── doces/      ← pagina de Doces
+    │   ├── clientes/   ← pagina de Clientes
+    │   ├── vendas/     ← pagina de Vendas
+    │   └── relatorios/ ← pagina de Relatorios
+    └── components/     ← componentes React reutilizaveis
 ```
 
-Para mais detalhes sobre o que foi implementado, veja `docs/public/CHANGELOG-interface-web.md`.
+Para detalhes do banco de dados, veja `docs/public/database/BANCO-DE-DADOS.md`.
