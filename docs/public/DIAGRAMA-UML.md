@@ -83,43 +83,40 @@ class Venda {
 }
 
 class GerenciadorDoceria {
-    -estoque: Doce[]
-    -clientes: Cliente[]
-    -historicoVendas: Venda[]
-    -proximoDoceId: number
-    -proximoClienteId: number
-    -proximoVendaId: number
-    +listarDoces(): object[]
-    +buscarDocePorId(id: number): Doce
-    +buscarDocesPorNome(nome: string): object[]
-    +buscarDocesPorCategoria(categoria: string): object[]
-    +cadastrarDoce(nome, categoria, preco, quantidade, fabricadoEmMari?): object
-    +atualizarDoce(id: number, dados: object): object
-    +removerDoce(id: number): boolean
-    +contarDoces(): number
-    +calcularValorEstoque(): number
-    +listarClientes(): object[]
-    +buscarClientePorId(id: number): Cliente
-    +buscarClientesPorNome(nome: string): object[]
-    +buscarClientePorCpf(cpf: string): Cliente
-    +cadastrarCliente(nome, cpf, email, telefone, torceFlamengo?, assisteOnePiece?, deSousa?): object
-    +atualizarCliente(id: number, dados: object): object
-    +removerCliente(id: number): boolean
-    +contarClientes(): number
-    +listarVendas(): object[]
-    +buscarVendaPorId(id: number): Venda
-    +buscarVendasPorCliente(clienteId: number): object[]
-    +registrarVenda(clienteId, doceId, quantidade): object | string
-    +contarVendas(): number
-    +calcularTotalVendido(): number
-    +gerarRelatorio(): object
+    +listarDoces(): Promise~object[]~
+    +buscarDocePorId(id: number): Promise~object~
+    +buscarDocesPorNome(nome: string): Promise~object[]~
+    +buscarDocesPorCategoria(categoria: string): Promise~object[]~
+    +cadastrarDoce(nome, categoria, preco, quantidade, fabricadoEmMari?): Promise~object~
+    +atualizarDoce(id: number, dados: object): Promise~object~
+    +removerDoce(id: number): Promise~boolean~
+    +contarDoces(): Promise~number~
+    +calcularValorEstoque(): Promise~number~
+    +listarClientes(): Promise~object[]~
+    +buscarClientePorId(id: number): Promise~object~
+    +buscarClientesPorNome(nome: string): Promise~object[]~
+    +buscarClientePorCpf(cpf: string): Promise~object~
+    +cadastrarCliente(nome, cpf, email, telefone, torceFlamengo?, assisteOnePiece?, deSousa?): Promise~object~
+    +atualizarCliente(id: number, dados: object): Promise~object~
+    +removerCliente(id: number): Promise~boolean~
+    +contarClientes(): Promise~number~
+    +listarVendas(): Promise~object[]~
+    +buscarVendaPorId(id: number): Promise~object~
+    +buscarVendasPorCliente(clienteId: number): Promise~object[]~
+    +registrarVenda(clienteId, doceId, quantidade): Promise~object | string~
+    +contarVendas(): Promise~number~
+    +calcularTotalVendido(): Promise~number~
+    +gerarRelatorio(): Promise~object~
+    -formatarDoce(row: any): object
+    -formatarCliente(row: any): object
+    -formatarVenda(row: any): object
 }
 
-GerenciadorDoceria "1" *-- "*" Doce : gerencia
-GerenciadorDoceria "1" *-- "*" Cliente : gerencia
-GerenciadorDoceria "1" *-- "*" Venda : registra
-Venda "*" --> "1" Cliente : referencia clienteId
-Venda "*" --> "1" Doce : referencia doceId
+GerenciadorDoceria ..> Doce : consulta via SQL
+GerenciadorDoceria ..> Cliente : consulta via SQL
+GerenciadorDoceria ..> Venda : consulta via SQL
+Venda "*" --> "1" Cliente : FK cliente_id
+Venda "*" --> "1" Doce : FK doce_id
 ```
 
 ---
@@ -128,10 +125,10 @@ Venda "*" --> "1" Doce : referencia doceId
 
 | Simbolo | Significado |
 |---------|-------------|
-| `-` | Atributo `private` |
+| `-` | Atributo/metodo `private` |
 | `+` | Metodo `public` |
-| `*--` | Composicao (o GerenciadorDoceria contem e gerencia o ciclo de vida) |
-| `-->` | Associacao (Venda referencia por ID, sem posse) |
+| `..>` | Dependencia (GerenciadorDoceria consulta as tabelas via SQL) |
+| `-->` | Associacao/FK (Venda referencia por ID) |
 
 ---
 
@@ -142,8 +139,10 @@ Venda "*" --> "1" Doce : referencia doceId
 | Doce | 6 | 16 | 22 |
 | Cliente | 8 | 17 | 25 |
 | Venda | 6 | 8 | 14 |
-| GerenciadorDoceria | 6 | 24 | 30 |
-| **Total** | **26** | **65** | **91** |
+| GerenciadorDoceria | 0 | 27 (24 publicos + 3 privados) | 27 |
+| **Total** | **20** | **68** | **88** |
+
+> **Nota:** O GerenciadorDoceria nao tem mais atributos (arrays/contadores). Os dados agora ficam no PostgreSQL. Os 3 metodos privados (`formatarDoce`, `formatarCliente`, `formatarVenda`) fazem o mapeamento `snake_case` → `camelCase`.
 
 ---
 
@@ -151,8 +150,8 @@ Venda "*" --> "1" Doce : referencia doceId
 
 | Relacao | Tipo | Descricao |
 |---------|------|-----------|
-| GerenciadorDoceria → Doce | Composicao (1:N) | O gerenciador contem e controla o ciclo de vida dos doces |
-| GerenciadorDoceria → Cliente | Composicao (1:N) | O gerenciador contem e controla o ciclo de vida dos clientes |
-| GerenciadorDoceria → Venda | Composicao (1:N) | O gerenciador contem e controla o ciclo de vida das vendas |
-| Venda → Cliente | Associacao (N:1) | Cada venda referencia um cliente pelo `clienteId` |
-| Venda → Doce | Associacao (N:1) | Cada venda referencia um doce pelo `doceId` |
+| GerenciadorDoceria → Doce | Dependencia | O gerenciador consulta a tabela `doces` via SQL |
+| GerenciadorDoceria → Cliente | Dependencia | O gerenciador consulta a tabela `clientes` via SQL |
+| GerenciadorDoceria → Venda | Dependencia | O gerenciador consulta a tabela `vendas` via SQL |
+| Venda → Cliente | FK (N:1) | `cliente_id` referencia `clientes(id)` com ON DELETE RESTRICT |
+| Venda → Doce | FK (N:1) | `doce_id` referencia `doces(id)` com ON DELETE RESTRICT |
