@@ -7,11 +7,11 @@ export async function GET(request: Request) {
   const nome = searchParams.get("nome");
 
   if (nome) {
-    const resultado = gerenciador.buscarDocesPorNome(nome);
+    const resultado = await gerenciador.buscarDocesPorNome(nome);
     return NextResponse.json(resultado);
   }
 
-  return NextResponse.json(gerenciador.listarDoces());
+  return NextResponse.json(await gerenciador.listarDoces());
 }
 
 // POST /api/doces
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ erro: "Campos obrigatorios faltando" }, { status: 400 });
   }
 
-  const novo = gerenciador.cadastrarDoce(
+  const novo = await gerenciador.cadastrarDoce(
     nome, categoria, Number(preco), Number(estoque), fabricadoEmMari || false
   );
   return NextResponse.json(novo, { status: 201 });

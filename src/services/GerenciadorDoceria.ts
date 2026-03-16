@@ -1,143 +1,166 @@
-// Classe que gerencia todas as operacoes CRUD do sistema
-// Usa as classes OOP (Doce, Cliente, Venda) internamente
-// Retorna objetos simples para a API via toObject()
-
-import { Doce } from "../models/Doce";
-import { Cliente } from "../models/Cliente";
-import { Venda } from "../models/Venda";
+import pool from "../lib/db";
 
 export class GerenciadorDoceria {
-  private estoque: Doce[] = [];
-  private clientes: Cliente[] = [];
-  private historicoVendas: Venda[] = [];
-  private proximoDoceId = 1;
-  private proximoClienteId = 1;
-  private proximoVendaId = 1;
 
   // ==================== DOCES ====================
 
-  listarDoces() {
-    let resultado = [];
-    for (const d of this.estoque) {
-      resultado.push(d.toObject());
+  async listarDoces() {
+    const resultado = await pool.query("SELECT * FROM doces ORDER BY id");
+    let doces = [];
+    for (const row of resultado.rows) {
+      doces.push(this.formatarDoce(row));
     }
-    return resultado;
+    return doces;
   }
 
-  buscarDocePorId(id: number): Doce | null {
-    for (const d of this.estoque) {
-      if (d.getId() === id) return d;
-    }
-    return null;
+  async buscarDocePorId(id: number) {
+    const resultado = await pool.query("SELECT * FROM doces WHERE id = $1", [id]);
+    if (resultado.rows.length === 0) return null;
+    return this.formatarDoce(resultado.rows[0]);
   }
 
-  buscarDocesPorNome(nome: string) {
-    const termo = nome.toLowerCase();
-    let resultado = [];
-    for (const d of this.estoque) {
-      if (d.getNome().toLowerCase().includes(termo)) {
-        resultado.push(d.toObject());
-      }
+  async buscarDocesPorNome(nome: string) {
+    const resultado = await pool.query(
+      "SELECT * FROM doces WHERE LOWER(nome) LIKE $1 ORDER BY id",
+      [`%${nome.toLowerCase()}%`]
+    );
+    let doces = [];
+    for (const row of resultado.rows) {
+      doces.push(this.formatarDoce(row));
     }
-    return resultado;
+    return doces;
   }
 
-  buscarDocesPorCategoria(categoria: string) {
-    let resultado = [];
-    for (const d of this.estoque) {
-      if (d.getCategoria().toLowerCase() === categoria.toLowerCase()) {
-        resultado.push(d.toObject());
-      }
+  async buscarDocesPorCategoria(categoria: string) {
+    const resultado = await pool.query(
+      "SELECT * FROM doces WHERE LOWER(categoria) = $1 ORDER BY id",
+      [categoria.toLowerCase()]
+    );
+    let doces = [];
+    for (const row of resultado.rows) {
+      doces.push(this.formatarDoce(row));
     }
-    return resultado;
+    return doces;
   }
 
-  cadastrarDoce(
+  async cadastrarDoce(
     nome: string,
     categoria: string,
     preco: number,
     quantidade: number,
     fabricadoEmMari: boolean = false
   ) {
-    const novo = new Doce(nome, categoria, preco, quantidade, fabricadoEmMari, this.proximoDoceId++);
-    this.estoque.push(novo);
-    return novo.toObject();
+    const resultado = await pool.query(
+      `INSERT INTO doces (nome, categoria, preco, estoque, fabricado_em_mari)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [nome, categoria, preco, quantidade, fabricadoEmMari]
+    );
+    return this.formatarDoce(resultado.rows[0]);
   }
 
-  atualizarDoce(id: number, dados: {
+  async atualizarDoce(id: number, dados: {
     nome?: string;
     categoria?: string;
     preco?: number;
     estoque?: number;
     fabricadoEmMari?: boolean;
   }) {
-    const doce = this.buscarDocePorId(id);
-    if (!doce) return null;
+    // primeiro verifica se existe
+    const existe = await pool.query("SELECT id FROM doces WHERE id = $1", [id]);
+    if (existe.rows.length === 0) return null;
 
-    if (dados.nome !== undefined) doce.setNome(dados.nome);
-    if (dados.categoria !== undefined) doce.setCategoria(dados.categoria);
-    if (dados.preco !== undefined) doce.setPreco(dados.preco);
-    if (dados.estoque !== undefined) doce.setQuantidade(dados.estoque);
-    if (dados.fabricadoEmMari !== undefined) doce.setFabricadoEmMari(dados.fabricadoEmMari);
+    // monta o UPDATE com os campos que vieram
+    const campos: string[] = [];
+    const valores: any[] = [];
+    let contador = 1;
 
-    return doce.toObject();
-  }
-
-  removerDoce(id: number): boolean {
-    const index = this.estoque.findIndex((d) => d.getId() === id);
-    if (index === -1) return false;
-    this.estoque.splice(index, 1);
-    return true;
-  }
-
-  contarDoces(): number {
-    return this.estoque.length;
-  }
-
-  calcularValorEstoque(): number {
-    let total = 0;
-    for (const d of this.estoque) {
-      total += d.getPreco() * d.getQuantidade();
+    if (dados.nome !== undefined) {
+      campos.push(`nome = $${contador++}`);
+      valores.push(dados.nome);
     }
-    return total;
+    if (dados.categoria !== undefined) {
+      campos.push(`categoria = $${contador++}`);
+      valores.push(dados.categoria);
+    }
+    if (dados.preco !== undefined) {
+      campos.push(`preco = $${contador++}`);
+      valores.push(dados.preco);
+    }
+    if (dados.estoque !== undefined) {
+      campos.push(`estoque = $${contador++}`);
+      valores.push(dados.estoque);
+    }
+    if (dados.fabricadoEmMari !== undefined) {
+      campos.push(`fabricado_em_mari = $${contador++}`);
+      valores.push(dados.fabricadoEmMari);
+    }
+
+    if (campos.length === 0) return null;
+
+    valores.push(id);
+    const resultado = await pool.query(
+      `UPDATE doces SET ${campos.join(", ")} WHERE id = $${contador} RETURNING *`,
+      valores
+    );
+    return this.formatarDoce(resultado.rows[0]);
+  }
+
+  async removerDoce(id: number): Promise<boolean> {
+    const resultado = await pool.query("DELETE FROM doces WHERE id = $1", [id]);
+    return (resultado.rowCount ?? 0) > 0;
+  }
+
+  async contarDoces(): Promise<number> {
+    const resultado = await pool.query("SELECT COUNT(*) FROM doces");
+    return parseInt(resultado.rows[0].count);
+  }
+
+  async calcularValorEstoque(): Promise<number> {
+    const resultado = await pool.query(
+      "SELECT COALESCE(SUM(preco * estoque), 0) as total FROM doces"
+    );
+    return parseFloat(resultado.rows[0].total);
   }
 
   // ==================== CLIENTES ====================
 
-  listarClientes() {
-    let resultado = [];
-    for (const c of this.clientes) {
-      resultado.push(c.toObject());
+  async listarClientes() {
+    const resultado = await pool.query("SELECT * FROM clientes ORDER BY id");
+    let clientes = [];
+    for (const row of resultado.rows) {
+      clientes.push(this.formatarCliente(row));
     }
-    return resultado;
+    return clientes;
   }
 
-  buscarClientePorId(id: number): Cliente | null {
-    for (const c of this.clientes) {
-      if (c.getId() === id) return c;
-    }
-    return null;
+  async buscarClientePorId(id: number) {
+    const resultado = await pool.query("SELECT * FROM clientes WHERE id = $1", [id]);
+    if (resultado.rows.length === 0) return null;
+    return this.formatarCliente(resultado.rows[0]);
   }
 
-  buscarClientesPorNome(nome: string) {
-    const termo = nome.toLowerCase();
-    let resultado = [];
-    for (const c of this.clientes) {
-      if (c.getNome().toLowerCase().includes(termo)) {
-        resultado.push(c.toObject());
-      }
+  async buscarClientesPorNome(nome: string) {
+    const resultado = await pool.query(
+      "SELECT * FROM clientes WHERE LOWER(nome) LIKE $1 ORDER BY id",
+      [`%${nome.toLowerCase()}%`]
+    );
+    let clientes = [];
+    for (const row of resultado.rows) {
+      clientes.push(this.formatarCliente(row));
     }
-    return resultado;
+    return clientes;
   }
 
-  buscarClientePorCpf(cpf: string): Cliente | null {
-    for (const c of this.clientes) {
-      if (c.getCpf() === cpf) return c;
-    }
-    return null;
+  async buscarClientePorCpf(cpf: string) {
+    const resultado = await pool.query(
+      "SELECT * FROM clientes WHERE cpf = $1",
+      [cpf]
+    );
+    if (resultado.rows.length === 0) return null;
+    return this.formatarCliente(resultado.rows[0]);
   }
 
-  cadastrarCliente(
+  async cadastrarCliente(
     nome: string,
     cpf: string,
     email: string,
@@ -146,16 +169,15 @@ export class GerenciadorDoceria {
     assisteOnePiece: boolean = false,
     deSousa: boolean = false
   ) {
-    const novo = new Cliente(
-      nome, cpf, email, telefone,
-      torceFlamengo, assisteOnePiece, deSousa,
-      this.proximoClienteId++
+    const resultado = await pool.query(
+      `INSERT INTO clientes (nome, cpf, email, telefone, torce_flamengo, assiste_one_piece, de_sousa)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [nome, cpf, email, telefone, torceFlamengo, assisteOnePiece, deSousa]
     );
-    this.clientes.push(novo);
-    return novo.toObject();
+    return this.formatarCliente(resultado.rows[0]);
   }
 
-  atualizarCliente(id: number, dados: {
+  async atualizarCliente(id: number, dados: {
     nome?: string;
     email?: string;
     telefone?: string;
@@ -163,99 +185,213 @@ export class GerenciadorDoceria {
     assisteOnePiece?: boolean;
     deSousa?: boolean;
   }) {
-    const cliente = this.buscarClientePorId(id);
-    if (!cliente) return null;
+    const existe = await pool.query("SELECT id FROM clientes WHERE id = $1", [id]);
+    if (existe.rows.length === 0) return null;
 
-    if (dados.nome !== undefined) cliente.setNome(dados.nome);
-    if (dados.email !== undefined) cliente.setEmail(dados.email);
-    if (dados.telefone !== undefined) cliente.setTelefone(dados.telefone);
-    if (dados.torceFlamengo !== undefined) cliente.setTorceFlamengo(dados.torceFlamengo);
-    if (dados.assisteOnePiece !== undefined) cliente.setAssisteOnePiece(dados.assisteOnePiece);
-    if (dados.deSousa !== undefined) cliente.setDeSousa(dados.deSousa);
+    const campos: string[] = [];
+    const valores: any[] = [];
+    let contador = 1;
 
-    return cliente.toObject();
+    if (dados.nome !== undefined) {
+      campos.push(`nome = $${contador++}`);
+      valores.push(dados.nome);
+    }
+    if (dados.email !== undefined) {
+      campos.push(`email = $${contador++}`);
+      valores.push(dados.email);
+    }
+    if (dados.telefone !== undefined) {
+      campos.push(`telefone = $${contador++}`);
+      valores.push(dados.telefone);
+    }
+    if (dados.torceFlamengo !== undefined) {
+      campos.push(`torce_flamengo = $${contador++}`);
+      valores.push(dados.torceFlamengo);
+    }
+    if (dados.assisteOnePiece !== undefined) {
+      campos.push(`assiste_one_piece = $${contador++}`);
+      valores.push(dados.assisteOnePiece);
+    }
+    if (dados.deSousa !== undefined) {
+      campos.push(`de_sousa = $${contador++}`);
+      valores.push(dados.deSousa);
+    }
+
+    if (campos.length === 0) return null;
+
+    valores.push(id);
+    const resultado = await pool.query(
+      `UPDATE clientes SET ${campos.join(", ")} WHERE id = $${contador} RETURNING *`,
+      valores
+    );
+    return this.formatarCliente(resultado.rows[0]);
   }
 
-  removerCliente(id: number): boolean {
-    const index = this.clientes.findIndex((c) => c.getId() === id);
-    if (index === -1) return false;
-    this.clientes.splice(index, 1);
-    return true;
+  async removerCliente(id: number): Promise<boolean> {
+    const resultado = await pool.query("DELETE FROM clientes WHERE id = $1", [id]);
+    return (resultado.rowCount ?? 0) > 0;
   }
 
-  contarClientes(): number {
-    return this.clientes.length;
+  async contarClientes(): Promise<number> {
+    const resultado = await pool.query("SELECT COUNT(*) FROM clientes");
+    return parseInt(resultado.rows[0].count);
   }
 
   // ==================== VENDAS ====================
 
-  listarVendas() {
-    let resultado = [];
-    for (const v of this.historicoVendas) {
-      resultado.push(v.toObject());
+  async listarVendas() {
+    const resultado = await pool.query("SELECT * FROM vendas ORDER BY id");
+    let vendas = [];
+    for (const row of resultado.rows) {
+      vendas.push(this.formatarVenda(row));
     }
-    return resultado;
+    return vendas;
   }
 
-  buscarVendaPorId(id: number): Venda | null {
-    for (const v of this.historicoVendas) {
-      if (v.getId() === id) return v;
-    }
-    return null;
+  async buscarVendaPorId(id: number) {
+    const resultado = await pool.query("SELECT * FROM vendas WHERE id = $1", [id]);
+    if (resultado.rows.length === 0) return null;
+    return this.formatarVenda(resultado.rows[0]);
   }
 
-  buscarVendasPorCliente(clienteId: number) {
-    let resultado = [];
-    for (const v of this.historicoVendas) {
-      if (v.getClienteId() === clienteId) {
-        resultado.push(v.toObject());
-      }
-    }
-    return resultado;
-  }
-
-  // registra uma venda, validando cliente, doce e estoque
-  registrarVenda(clienteId: number, doceId: number, quantidade: number) {
-    const cliente = this.buscarClientePorId(clienteId);
-    if (!cliente) return "Cliente nao encontrado";
-
-    const doce = this.buscarDocePorId(doceId);
-    if (!doce) return "Doce nao encontrado";
-
-    // usa o metodo vender() da classe Doce (verifica e desconta estoque)
-    if (!doce.vender(quantidade)) return "Estoque insuficiente";
-
-    const valorTotal = doce.getPreco() * quantidade;
-    const nova = new Venda(
-      clienteId, doceId, quantidade, valorTotal,
-      new Date().toLocaleDateString("pt-BR"),
-      this.proximoVendaId++
+  async buscarVendasPorCliente(clienteId: number) {
+    const resultado = await pool.query(
+      "SELECT * FROM vendas WHERE cliente_id = $1 ORDER BY id",
+      [clienteId]
     );
-    this.historicoVendas.push(nova);
-    return nova.toObject();
-  }
-
-  contarVendas(): number {
-    return this.historicoVendas.length;
-  }
-
-  calcularTotalVendido(): number {
-    let total = 0;
-    for (const v of this.historicoVendas) {
-      total += v.getValorTotal();
+    let vendas = [];
+    for (const row of resultado.rows) {
+      vendas.push(this.formatarVenda(row));
     }
-    return total;
+    return vendas;
+  }
+
+  // registra uma venda usando transacao (valida cliente, doce, estoque)
+  async registrarVenda(clienteId: number, doceId: number, quantidade: number) {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      // verifica se o cliente existe
+      const clienteRes = await client.query(
+        "SELECT id FROM clientes WHERE id = $1",
+        [clienteId]
+      );
+      if (clienteRes.rows.length === 0) {
+        await client.query("ROLLBACK");
+        return "Cliente nao encontrado";
+      }
+
+      // busca o doce e trava a linha pra ninguem mexer enquanto processa
+      const doceRes = await client.query(
+        "SELECT * FROM doces WHERE id = $1 FOR UPDATE",
+        [doceId]
+      );
+      if (doceRes.rows.length === 0) {
+        await client.query("ROLLBACK");
+        return "Doce nao encontrado";
+      }
+
+      const doce = doceRes.rows[0];
+
+      // verifica estoque
+      if (doce.estoque < quantidade) {
+        await client.query("ROLLBACK");
+        return "Estoque insuficiente";
+      }
+
+      // desconta o estoque
+      await client.query(
+        "UPDATE doces SET estoque = estoque - $1 WHERE id = $2",
+        [quantidade, doceId]
+      );
+
+      // calcula o valor total e insere a venda
+      const valorTotal = parseFloat(doce.preco) * quantidade;
+      const vendaRes = await client.query(
+        `INSERT INTO vendas (cliente_id, doce_id, quantidade, valor_total)
+         VALUES ($1, $2, $3, $4) RETURNING *`,
+        [clienteId, doceId, quantidade, valorTotal]
+      );
+
+      await client.query("COMMIT");
+      return this.formatarVenda(vendaRes.rows[0]);
+    } catch (erro) {
+      await client.query("ROLLBACK");
+      throw erro;
+    } finally {
+      client.release();
+    }
+  }
+
+  async contarVendas(): Promise<number> {
+    const resultado = await pool.query("SELECT COUNT(*) FROM vendas");
+    return parseInt(resultado.rows[0].count);
+  }
+
+  async calcularTotalVendido(): Promise<number> {
+    const resultado = await pool.query(
+      "SELECT COALESCE(SUM(valor_total), 0) as total FROM vendas"
+    );
+    return parseFloat(resultado.rows[0].total);
   }
 
   // ==================== RELATORIOS ====================
 
-  gerarRelatorio() {
+  async gerarRelatorio() {
+    // faz todas as queries em paralelo pra ser mais rapido
+    const [doces, clientes, vendas, estoque, vendido] = await Promise.all([
+      this.contarDoces(),
+      this.contarClientes(),
+      this.contarVendas(),
+      this.calcularValorEstoque(),
+      this.calcularTotalVendido(),
+    ]);
+
     return {
-      totalDoces: this.contarDoces(),
-      totalClientes: this.contarClientes(),
-      totalVendas: this.contarVendas(),
-      valorEstoque: this.calcularValorEstoque(),
-      totalVendido: this.calcularTotalVendido(),
+      totalDoces: doces,
+      totalClientes: clientes,
+      totalVendas: vendas,
+      valorEstoque: estoque,
+      totalVendido: vendido,
+    };
+  }
+
+  // ==================== HELPERS ====================
+
+  // converte uma row do banco pro formato que a API espera (snake_case -> camelCase)
+  private formatarDoce(row: any) {
+    return {
+      id: row.id,
+      nome: row.nome,
+      categoria: row.categoria,
+      preco: parseFloat(row.preco),
+      estoque: row.estoque,
+      fabricadoEmMari: row.fabricado_em_mari,
+    };
+  }
+
+  private formatarCliente(row: any) {
+    return {
+      id: row.id,
+      nome: row.nome,
+      cpf: row.cpf,
+      email: row.email,
+      telefone: row.telefone,
+      torceFlamengo: row.torce_flamengo,
+      assisteOnePiece: row.assiste_one_piece,
+      deSousa: row.de_sousa,
+    };
+  }
+
+  private formatarVenda(row: any) {
+    return {
+      id: row.id,
+      clienteId: row.cliente_id,
+      doceId: row.doce_id,
+      quantidade: row.quantidade,
+      valorTotal: parseFloat(row.valor_total),
+      dataVenda: new Date(row.data_venda).toLocaleDateString("pt-BR"),
     };
   }
 }
