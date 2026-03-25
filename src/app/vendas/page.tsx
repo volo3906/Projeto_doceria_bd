@@ -48,16 +48,25 @@ export default function VendasPage() {
   }, []);
 
   async function carregarDados() {
-    // carrega tudo de uma vez
-    const [resVendas, resDoces, resClientes] = await Promise.all([
-      fetch("/api/vendas"),
-      fetch("/api/doces"),
-      fetch("/api/clientes"),
-    ]);
+    try {
+      // carrega tudo de uma vez
+      const [resVendas, resDoces, resClientes] = await Promise.all([
+        fetch("/api/vendas"),
+        fetch("/api/doces"),
+        fetch("/api/clientes"),
+      ]);
 
-    setVendas(await resVendas.json());
-    setDoces(await resDoces.json());
-    setClientes(await resClientes.json());
+      if (!resVendas.ok || !resDoces.ok || !resClientes.ok) {
+        toast.error("Erro ao carregar dados");
+        return;
+      }
+
+      setVendas(await resVendas.json());
+      setDoces(await resDoces.json());
+      setClientes(await resClientes.json());
+    } catch {
+      toast.error("Erro ao conectar com o servidor");
+    }
   }
 
   async function realizarVenda() {

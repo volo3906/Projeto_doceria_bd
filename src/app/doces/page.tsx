@@ -45,9 +45,17 @@ export default function DocesPage() {
   }, []);
 
   async function carregarDoces() {
-    const res = await fetch("/api/doces");
-    const dados = await res.json();
-    setDoces(dados);
+    try {
+      const res = await fetch("/api/doces");
+      if (!res.ok) {
+        toast.error("Erro ao carregar doces");
+        return;
+      }
+      const dados = await res.json();
+      setDoces(dados);
+    } catch {
+      toast.error("Erro ao conectar com o servidor");
+    }
   }
 
   async function pesquisar() {
@@ -55,9 +63,17 @@ export default function DocesPage() {
       carregarDoces();
       return;
     }
-    const res = await fetch(`/api/doces?nome=${busca}`);
-    const dados = await res.json();
-    setDoces(dados);
+    try {
+      const res = await fetch(`/api/doces?nome=${busca}`);
+      if (!res.ok) {
+        toast.error("Erro ao pesquisar");
+        return;
+      }
+      const dados = await res.json();
+      setDoces(dados);
+    } catch {
+      toast.error("Erro ao conectar com o servidor");
+    }
   }
 
   function abrirParaEditar(doce: Doce) {
@@ -100,14 +116,24 @@ export default function DocesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(dados),
       });
-      if (res.ok) toast.success("Doce atualizado!");
+      const resultado = await res.json();
+      if (!res.ok) {
+        toast.error(resultado.erro || "Erro ao atualizar doce");
+        return;
+      }
+      toast.success("Doce atualizado!");
     } else {
       const res = await fetch("/api/doces", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(dados),
       });
-      if (res.ok) toast.success("Doce cadastrado!");
+      const resultado = await res.json();
+      if (!res.ok) {
+        toast.error(resultado.erro || "Erro ao cadastrar doce");
+        return;
+      }
+      toast.success("Doce cadastrado!");
     }
 
     setDialogAberto(false);
@@ -118,10 +144,13 @@ export default function DocesPage() {
     if (!confirm("Tem certeza que deseja remover este doce?")) return;
 
     const res = await fetch(`/api/doces/${id}`, { method: "DELETE" });
-    if (res.ok) {
-      toast.success("Doce removido!");
-      carregarDoces();
+    const resultado = await res.json();
+    if (!res.ok) {
+      toast.error(resultado.erro || "Erro ao remover doce");
+      return;
     }
+    toast.success("Doce removido!");
+    carregarDoces();
   }
 
   return (
