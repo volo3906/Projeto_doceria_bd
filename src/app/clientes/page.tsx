@@ -47,9 +47,17 @@ export default function ClientesPage() {
   }, []);
 
   async function carregarClientes() {
-    const res = await fetch("/api/clientes");
-    const dados = await res.json();
-    setClientes(dados);
+    try {
+      const res = await fetch("/api/clientes");
+      if (!res.ok) {
+        toast.error("Erro ao carregar clientes");
+        return;
+      }
+      const dados = await res.json();
+      setClientes(dados);
+    } catch {
+      toast.error("Erro ao conectar com o servidor");
+    }
   }
 
   async function pesquisar() {
@@ -57,9 +65,17 @@ export default function ClientesPage() {
       carregarClientes();
       return;
     }
-    const res = await fetch(`/api/clientes?nome=${busca}`);
-    const dados = await res.json();
-    setClientes(dados);
+    try {
+      const res = await fetch(`/api/clientes?nome=${busca}`);
+      if (!res.ok) {
+        toast.error("Erro ao pesquisar");
+        return;
+      }
+      const dados = await res.json();
+      setClientes(dados);
+    } catch {
+      toast.error("Erro ao conectar com o servidor");
+    }
   }
 
   function abrirParaEditar(cliente: Cliente) {
@@ -108,14 +124,24 @@ export default function ClientesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(dados),
       });
-      if (res.ok) toast.success("Cliente atualizado!");
+      const resultado = await res.json();
+      if (!res.ok) {
+        toast.error(resultado.erro || "Erro ao atualizar cliente");
+        return;
+      }
+      toast.success("Cliente atualizado!");
     } else {
       const res = await fetch("/api/clientes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(dados),
       });
-      if (res.ok) toast.success("Cliente cadastrado!");
+      const resultado = await res.json();
+      if (!res.ok) {
+        toast.error(resultado.erro || "Erro ao cadastrar cliente");
+        return;
+      }
+      toast.success("Cliente cadastrado!");
     }
 
     setDialogAberto(false);
@@ -126,10 +152,13 @@ export default function ClientesPage() {
     if (!confirm("Tem certeza que deseja remover este cliente?")) return;
 
     const res = await fetch(`/api/clientes/${id}`, { method: "DELETE" });
-    if (res.ok) {
-      toast.success("Cliente removido!");
-      carregarClientes();
+    const resultado = await res.json();
+    if (!res.ok) {
+      toast.error(resultado.erro || "Erro ao remover cliente");
+      return;
     }
+    toast.success("Cliente removido!");
+    carregarClientes();
   }
 
   return (
