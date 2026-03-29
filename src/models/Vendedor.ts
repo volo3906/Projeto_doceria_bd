@@ -19,7 +19,7 @@ export class Vendedor {
     this.cpf = cpf;
   }
 
-  // getters
+  
   getId(): number | undefined {
     return this.id;
   }
@@ -40,7 +40,7 @@ export class Vendedor {
     return this.cpf;
   }
 
-  // setters
+  
   setNome(novoNome: string): void {
     this.nome = novoNome;
   }
@@ -57,7 +57,7 @@ export class Vendedor {
     this.cpf = novoCpf;
   }
 
-  // converte para objeto simples (usado na API)
+
   toObject() {
     return {
       id: this.id,
