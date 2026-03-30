@@ -31,6 +31,7 @@ import {
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Doce, Cliente, Venda } from "@/lib/types";
+import { formatarPreco } from "@/lib/utils";
 
 export default function VendasPage() {
   const [vendas, setVendas] = useState<Venda[]>([]);
@@ -158,7 +159,7 @@ export default function VendasPage() {
                     <SelectContent>
                       {doces.map((d) => (
                         <SelectItem key={d.id} value={d.id.toString()}>
-                          {d.nome} — R$ {d.preco.toFixed(2)} (estoque: {d.estoque})
+                          {d.nome} — {formatarPreco(d.preco)} (estoque: {d.estoque})
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -220,7 +221,7 @@ export default function VendasPage() {
                       <TableCell>{nomeDoce(venda.doceId)}</TableCell>
                       <TableCell className="text-center">{venda.quantidade}</TableCell>
                       <TableCell className="text-right font-medium">
-                        R$ {venda.valorTotal.toFixed(2)}
+                        {formatarPreco(venda.valorTotal)}
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground">
                         {venda.dataVenda}

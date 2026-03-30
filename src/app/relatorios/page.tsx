@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/table";
 import { Package, Users, ShoppingCart, AlertTriangle } from "lucide-react";
 import { Doce, Cliente, Venda } from "@/lib/types";
+import { formatarPreco, formatarTelefone } from "@/lib/utils";
 
 export default function RelatoriosPage() {
   const [doces, setDoces] = useState<Doce[]>([]);
@@ -116,7 +117,7 @@ export default function RelatoriosPage() {
               </div>
               <div className="rounded-lg border p-3 text-center">
                 <p className="text-sm text-muted-foreground">Valor em Estoque</p>
-                <p className="text-2xl font-bold">R$ {valorTotalEstoque.toFixed(2)}</p>
+                <p className="text-2xl font-bold">{formatarPreco(valorTotalEstoque)}</p>
               </div>
               <div className="rounded-lg border p-3 text-center">
                 <p className="text-sm text-muted-foreground">Estoque Baixo</p>
@@ -156,7 +157,7 @@ export default function RelatoriosPage() {
                         <Badge variant="secondary">{doce.categoria}</Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        R$ {doce.preco.toFixed(2)}
+                        {formatarPreco(doce.preco)}
                       </TableCell>
                       <TableCell className="text-center">
                         {doce.estoque < 5 ? (
@@ -166,7 +167,7 @@ export default function RelatoriosPage() {
                         )}
                       </TableCell>
                       <TableCell className="text-right font-medium">
-                        R$ {(doce.preco * doce.estoque).toFixed(2)}
+                        {formatarPreco(doce.preco * doce.estoque)}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -223,7 +224,7 @@ export default function RelatoriosPage() {
                       <TableRow key={cliente.id}>
                         <TableCell className="font-medium">{cliente.nome}</TableCell>
                         <TableCell>{cliente.email}</TableCell>
-                        <TableCell>{cliente.telefone}</TableCell>
+                        <TableCell>{formatarTelefone(cliente.telefone)}</TableCell>
                         <TableCell className="text-center">
                           {stats.quantidade > 0 ? (
                             <Badge variant="secondary">{stats.quantidade}</Badge>
@@ -233,7 +234,7 @@ export default function RelatoriosPage() {
                         </TableCell>
                         <TableCell className="text-right font-medium">
                           {stats.total > 0
-                            ? `R$ ${stats.total.toFixed(2)}`
+                            ? formatarPreco(stats.total)
                             : "-"}
                         </TableCell>
                       </TableRow>
@@ -265,12 +266,12 @@ export default function RelatoriosPage() {
               <div className="rounded-lg border p-3 text-center">
                 <p className="text-sm text-muted-foreground">Total Arrecadado</p>
                 <p className="text-2xl font-bold text-green-600">
-                  R$ {totalArrecadado.toFixed(2)}
+                  {formatarPreco(totalArrecadado)}
                 </p>
               </div>
               <div className="rounded-lg border p-3 text-center">
                 <p className="text-sm text-muted-foreground">Ticket Medio</p>
-                <p className="text-2xl font-bold">R$ {ticketMedio.toFixed(2)}</p>
+                <p className="text-2xl font-bold">{formatarPreco(ticketMedio)}</p>
               </div>
             </div>
 
@@ -302,7 +303,7 @@ export default function RelatoriosPage() {
                       <TableCell>{nomeDoce(venda.doceId)}</TableCell>
                       <TableCell className="text-center">{venda.quantidade}</TableCell>
                       <TableCell className="text-right font-medium">
-                        R$ {venda.valorTotal.toFixed(2)}
+                        {formatarPreco(venda.valorTotal)}
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground">
                         {venda.dataVenda}
