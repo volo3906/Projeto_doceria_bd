@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Cake, Users, ShoppingCart, DollarSign } from "lucide-react";
+import { formatarPreco } from "@/lib/utils";
 
 export default function HomePage() {
   const [relatorio, setRelatorio] = useState({
@@ -45,7 +46,7 @@ export default function HomePage() {
     },
     {
       titulo: "Total Vendido",
-      valor: `R$ ${relatorio.totalVendido.toFixed(2)}`,
+      valor: formatarPreco(relatorio.totalVendido),
       icone: DollarSign,
       cor: "text-emerald-500",
     },
@@ -79,7 +80,7 @@ export default function HomePage() {
           </CardHeader>
           <CardContent>
             <p className="text-3xl font-bold text-pink-500">
-              R$ {relatorio.valorEstoque.toFixed(2)}
+              {formatarPreco(relatorio.valorEstoque)}
             </p>
             <p className="text-muted-foreground text-sm mt-1">
               Valor total dos produtos em estoque

@@ -25,6 +25,7 @@ import {
 import { Plus, Search, Pencil, Trash2, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { Doce } from "@/lib/types";
+import { formatarPreco, parsearPreco } from "@/lib/utils";
 
 export default function DocesPage() {
   const [doces, setDoces] = useState<Doce[]>([]);
@@ -105,7 +106,7 @@ export default function DocesPage() {
     const dados = {
       nome,
       categoria,
-      preco: parseFloat(preco),
+      preco: parsearPreco(preco),
       estoque: parseInt(estoque),
       fabricadoEmMari,
     };
@@ -194,11 +195,9 @@ export default function DocesPage() {
                     <Label htmlFor="preco">Preco (R$)</Label>
                     <Input
                       id="preco"
-                      type="number"
-                      step="0.01"
                       value={preco}
                       onChange={(e) => setPreco(e.target.value)}
-                      placeholder="0.00"
+                      placeholder="0,00"
                     />
                   </div>
                   <div>
@@ -297,7 +296,7 @@ export default function DocesPage() {
                         <Badge variant="secondary">{doce.categoria}</Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        R$ {doce.preco.toFixed(2)}
+                        {formatarPreco(doce.preco)}
                       </TableCell>
                       <TableCell className="text-center">
                         {doce.estoque < 5 ? (
@@ -361,7 +360,7 @@ export default function DocesPage() {
                 </div>
                 <div className="flex justify-between rounded-lg border p-3">
                   <span className="text-muted-foreground">Preco</span>
-                  <span className="font-medium">R$ {visualizando.preco.toFixed(2)}</span>
+                  <span className="font-medium">{formatarPreco(visualizando.preco)}</span>
                 </div>
                 <div className="flex justify-between rounded-lg border p-3">
                   <span className="text-muted-foreground">Estoque</span>
