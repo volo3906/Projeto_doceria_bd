@@ -115,7 +115,11 @@ export default function VendasPage() {
     }
 
     const dados = await res.json();
-    toast.success("Venda realizada!");
+    if (dados.descontoAplicado && dados.descontoAplicado > 0) {
+      toast.success(`Venda realizada com ${dados.descontoAplicado}% de desconto!`);
+    } else {
+      toast.success("Venda realizada!");
+    }
     setDialogAberto(false);
     setClienteId("");
     setDoceId("");
@@ -228,10 +232,15 @@ export default function VendasPage() {
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione o doce" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="w-[var(--radix-select-trigger-width)]">
                       {doces.map((d) => (
                         <SelectItem key={d.id} value={d.id.toString()}>
-                          {d.nome} — {formatarPreco(d.preco)} (estoque: {d.estoque})
+                          <div className="flex flex-col">
+                            <span>{d.nome}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {formatarPreco(d.preco)} — estoque: {d.estoque}
+                            </span>
+                          </div>
                         </SelectItem>
                       ))}
                     </SelectContent>
