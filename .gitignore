@@ -43,5 +43,8 @@ next-env.d.ts
 # documentos privados (especificacao do professor)
 docs/private/
 
+# arquivos de sessao de editor
+*.session.sql
+
 # configuracao do claude code
 CLAUDE.md
