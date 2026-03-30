@@ -1,9 +1,39 @@
-import pool from "../lib/db";
+# Instrucoes para o Parceiro — Migracao PostgreSQL
 
-// remove tudo que nao e digito (usado pra normalizar cpf e telefone)
-function somenteDigitos(valor: string): string {
-  return valor.replace(/\D/g, "");
-}
+> Este documento contem TODOS os arquivos que o parceiro precisa criar/substituir na maquina dele.
+> Apos copiar, ele faz 2 commits separados.
+
+---
+
+## Pre-requisitos
+
+1. `git pull` — puxar o commit do Johan (Docker + schema + db.ts)
+2. `npm install` — instalar pg + @types/pg (novas dependencias)
+3. Copiar `.env.example` para `.env`
+4. Editar `.env` com as credenciais reais:
+
+```
+POSTGRES_DB=doceria
+POSTGRES_USER=doceria
+POSTGRES_PASSWORD=06f4e3a9cbf3f901db7f840e5f3da86dd08baa46
+DATABASE_URL=postgresql://doceria:06f4e3a9cbf3f901db7f840e5f3da86dd08baa46@178.156.217.151:5433/doceria
+```
+
+5. `npm run dev` — testar se conecta no banco
+
+---
+
+## Commit 1: `feat(db): migrar GerenciadorDoceria para PostgreSQL`
+
+### Arquivo 1/8: src/services/GerenciadorDoceria.ts
+
+**SUBSTITUIR O ARQUIVO INTEIRO** pelo conteudo abaixo:
+
+```typescript
+// Classe que gerencia todas as operacoes CRUD do sistema
+// Conecta no PostgreSQL e retorna objetos formatados para a API
+
+import pool from "../lib/db";
 
 export class GerenciadorDoceria {
 
@@ -157,10 +187,9 @@ export class GerenciadorDoceria {
   }
 
   async buscarClientePorCpf(cpf: string) {
-    const cpfLimpo = somenteDigitos(cpf);
     const resultado = await pool.query(
       "SELECT * FROM clientes WHERE cpf = $1",
-      [cpfLimpo]
+      [cpf]
     );
     if (resultado.rows.length === 0) return null;
     return this.formatarCliente(resultado.rows[0]);
@@ -175,14 +204,10 @@ export class GerenciadorDoceria {
     assisteOnePiece: boolean = false,
     deSousa: boolean = false
   ) {
-    // normaliza cpf e telefone — salva so digitos no banco
-    const cpfLimpo = somenteDigitos(cpf);
-    const telLimpo = somenteDigitos(telefone);
-
     const resultado = await pool.query(
       `INSERT INTO clientes (nome, cpf, email, telefone, torce_flamengo, assiste_one_piece, de_sousa)
        VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [nome, cpfLimpo, email, telLimpo, torceFlamengo, assisteOnePiece, deSousa]
+      [nome, cpf, email, telefone, torceFlamengo, assisteOnePiece, deSousa]
     );
     return this.formatarCliente(resultado.rows[0]);
   }
@@ -212,7 +237,7 @@ export class GerenciadorDoceria {
     }
     if (dados.telefone !== undefined) {
       campos.push(`telefone = $${contador++}`);
-      valores.push(somenteDigitos(dados.telefone));
+      valores.push(dados.telefone);
     }
     if (dados.torceFlamengo !== undefined) {
       campos.push(`torce_flamengo = $${contador++}`);
@@ -276,15 +301,8 @@ export class GerenciadorDoceria {
     return vendas;
   }
 
-  // registra uma venda usando transacao (valida cliente, doce, vendedor, estoque)
-  async registrarVenda(
-    clienteId: number,
-    doceId: number,
-    vendedorId: number,
-    quantidade: number,
-    formaPagamento: "cartao" | "boleto" | "pix" | "berries" | "dinheiro",
-    statusPagamento?: "confirmado" | "pendente" | "recusado"
-  ) {
+  // registra uma venda usando transacao (valida cliente, doce, estoque)
+  async registrarVenda(clienteId: number, doceId: number, quantidade: number) {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -297,16 +315,6 @@ export class GerenciadorDoceria {
       if (clienteRes.rows.length === 0) {
         await client.query("ROLLBACK");
         return "Cliente nao encontrado";
-      }
-
-      // verifica se o vendedor existe
-      const vendedorRes = await client.query(
-        "SELECT id FROM vendedores WHERE id = $1",
-        [vendedorId]
-      );
-      if (vendedorRes.rows.length === 0) {
-        await client.query("ROLLBACK");
-        return "Vendedor nao encontrado";
       }
 
       // busca o doce e trava a linha pra ninguem mexer enquanto processa
@@ -333,20 +341,12 @@ export class GerenciadorDoceria {
         [quantidade, doceId]
       );
 
-      // calcula o valor total
+      // calcula o valor total e insere a venda
       const valorTotal = parseFloat(doce.preco) * quantidade;
-
-      // define o status do pagamento padrão se não for fornecido
-      let finalStatusPagamento = statusPagamento;
-      if (!finalStatusPagamento && ["cartao", "boleto", "pix", "berries"].includes(formaPagamento)) {
-        finalStatusPagamento = "pendente";
-      }
-
-      // insere a venda
       const vendaRes = await client.query(
-        `INSERT INTO vendas (cliente_id, doce_id, vendedor_id, quantidade, valor_total, forma_pagamento, status_pagamento)
-         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-        [clienteId, doceId, vendedorId, quantidade, valorTotal, formaPagamento, finalStatusPagamento]
+        `INSERT INTO vendas (cliente_id, doce_id, quantidade, valor_total)
+         VALUES ($1, $2, $3, $4) RETURNING *`,
+        [clienteId, doceId, quantidade, valorTotal]
       );
 
       await client.query("COMMIT");
@@ -369,102 +369,6 @@ export class GerenciadorDoceria {
       "SELECT COALESCE(SUM(valor_total), 0) as total FROM vendas"
     );
     return parseFloat(resultado.rows[0].total);
-  }
-
-  // ==================== VENDEDORES ====================
-
-  async listarVendedores() {
-    const resultado = await pool.query("SELECT * FROM vendedores ORDER BY id");
-    let vendedores = [];
-    for (const row of resultado.rows) {
-      vendedores.push(this.formatarVendedor(row));
-    }
-    return vendedores;
-  }
-
-  async buscarVendedorPorId(id: number) {
-    const resultado = await pool.query("SELECT * FROM vendedores WHERE id = $1", [id]);
-    if (resultado.rows.length === 0) return null;
-    return this.formatarVendedor(resultado.rows[0]);
-  }
-
-  async buscarVendedoresPorNome(nome: string) {
-    const resultado = await pool.query(
-      "SELECT * FROM vendedores WHERE LOWER(nome) LIKE $1 ORDER BY id",
-      [`%${nome.toLowerCase()}%`]
-    );
-    let vendedores = [];
-    for (const row of resultado.rows) {
-      vendedores.push(this.formatarVendedor(row));
-    }
-    return vendedores;
-  }
-
-  async cadastrarVendedor(
-    nome: string,
-    email: string,
-    telefone: string,
-    cpf: string
-  ) {
-    const cpfLimpo = somenteDigitos(cpf);
-    const telLimpo = somenteDigitos(telefone);
-
-    const resultado = await pool.query(
-      `INSERT INTO vendedores (nome, cpf, email, telefone)
-       VALUES ($1, $2, $3, $4) RETURNING *`,
-      [nome, cpfLimpo, email, telLimpo]
-    );
-    return this.formatarVendedor(resultado.rows[0]);
-  }
-
-  async atualizarVendedor(id: number, dados: {
-    nome?: string;
-    email?: string;
-    telefone?: string;
-    cpf?: string;
-  }) {
-    const existe = await pool.query("SELECT id FROM vendedores WHERE id = $1", [id]);
-    if (existe.rows.length === 0) return null;
-
-    const campos: string[] = [];
-    const valores: any[] = [];
-    let contador = 1;
-
-    if (dados.nome !== undefined) {
-      campos.push(`nome = $${contador++}`);
-      valores.push(dados.nome);
-    }
-    if (dados.email !== undefined) {
-      campos.push(`email = $${contador++}`);
-      valores.push(dados.email);
-    }
-    if (dados.telefone !== undefined) {
-      campos.push(`telefone = $${contador++}`);
-      valores.push(somenteDigitos(dados.telefone));
-    }
-    if (dados.cpf !== undefined) {
-      campos.push(`cpf = $${contador++}`);
-      valores.push(somenteDigitos(dados.cpf));
-    }
-
-    if (campos.length === 0) return null;
-
-    valores.push(id);
-    const resultado = await pool.query(
-      `UPDATE vendedores SET ${campos.join(", ")} WHERE id = $${contador} RETURNING *`,
-      valores
-    );
-    return this.formatarVendedor(resultado.rows[0]);
-  }
-
-  async removerVendedor(id: number): Promise<boolean> {
-    const resultado = await pool.query("DELETE FROM vendedores WHERE id = $1", [id]);
-    return (resultado.rowCount ?? 0) > 0;
-  }
-
-  async contarVendedores(): Promise<number> {
-    const resultado = await pool.query("SELECT COUNT(*) FROM vendedores");
-    return parseInt(resultado.rows[0].count);
   }
 
   // ==================== RELATORIOS ====================
@@ -520,22 +424,295 @@ export class GerenciadorDoceria {
       id: row.id,
       clienteId: row.cliente_id,
       doceId: row.doce_id,
-      vendedorId: row.vendedor_id,
       quantidade: row.quantidade,
       valorTotal: parseFloat(row.valor_total),
       dataVenda: new Date(row.data_venda).toLocaleDateString("pt-BR"),
-      formaPagamento: row.forma_pagamento,
-      statusPagamento: row.status_pagamento,
-    };
-  }
-
-  private formatarVendedor(row: any) {
-    return {
-      id: row.id,
-      nome: row.nome,
-      cpf: row.cpf,
-      email: row.email,
-      telefone: row.telefone,
     };
   }
 }
+```
+
+---
+
+### Arquivo 2/8: src/lib/dados.ts
+
+**SUBSTITUIR O ARQUIVO INTEIRO:**
+
+```typescript
+// singleton do gerenciador — agora conecta no PostgreSQL
+import { GerenciadorDoceria } from "../services/GerenciadorDoceria";
+
+const gerenciador = new GerenciadorDoceria();
+
+export default gerenciador;
+```
+
+---
+
+### Arquivo 3/8: src/app/api/doces/route.ts
+
+**SUBSTITUIR O ARQUIVO INTEIRO:**
+
+```typescript
+import { NextResponse } from "next/server";
+import gerenciador from "@/lib/dados";
+
+// GET /api/doces ou GET /api/doces?nome=brigadeiro
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const nome = searchParams.get("nome");
+
+  if (nome) {
+    const resultado = await gerenciador.buscarDocesPorNome(nome);
+    return NextResponse.json(resultado);
+  }
+
+  return NextResponse.json(await gerenciador.listarDoces());
+}
+
+// POST /api/doces
+export async function POST(request: Request) {
+  const body = await request.json();
+  const { nome, categoria, preco, estoque, fabricadoEmMari } = body;
+
+  if (!nome || !categoria || preco === undefined || estoque === undefined) {
+    return NextResponse.json({ erro: "Campos obrigatorios faltando" }, { status: 400 });
+  }
+
+  const novo = await gerenciador.cadastrarDoce(
+    nome, categoria, Number(preco), Number(estoque), fabricadoEmMari || false
+  );
+  return NextResponse.json(novo, { status: 201 });
+}
+```
+
+---
+
+### Arquivo 4/8: src/app/api/doces/[id]/route.ts
+
+**SUBSTITUIR O ARQUIVO INTEIRO:**
+
+```typescript
+import { NextResponse } from "next/server";
+import gerenciador from "@/lib/dados";
+
+// GET /api/doces/1
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const doce = await gerenciador.buscarDocePorId(Number(id));
+  if (!doce) {
+    return NextResponse.json({ erro: "Doce nao encontrado" }, { status: 404 });
+  }
+  return NextResponse.json(doce);
+}
+
+// PUT /api/doces/1
+export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const body = await request.json();
+  const atualizado = await gerenciador.atualizarDoce(Number(id), body);
+  if (!atualizado) {
+    return NextResponse.json({ erro: "Doce nao encontrado" }, { status: 404 });
+  }
+  return NextResponse.json(atualizado);
+}
+
+// DELETE /api/doces/1
+export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  try {
+    const removido = await gerenciador.removerDoce(Number(id));
+    if (!removido) {
+      return NextResponse.json({ erro: "Doce nao encontrado" }, { status: 404 });
+    }
+    return NextResponse.json({ mensagem: "Removido com sucesso" });
+  } catch (erro: any) {
+    if (erro.code === "23503") {
+      return NextResponse.json(
+        { erro: "Nao e possivel remover: este doce tem vendas associadas" },
+        { status: 400 }
+      );
+    }
+    return NextResponse.json({ erro: "Erro interno" }, { status: 500 });
+  }
+}
+```
+
+---
+
+### Arquivo 5/8: src/app/api/clientes/route.ts
+
+**SUBSTITUIR O ARQUIVO INTEIRO:**
+
+```typescript
+import { NextResponse } from "next/server";
+import gerenciador from "@/lib/dados";
+
+// GET /api/clientes ou GET /api/clientes?nome=joao
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const nome = searchParams.get("nome");
+
+  if (nome) {
+    const resultado = await gerenciador.buscarClientesPorNome(nome);
+    return NextResponse.json(resultado);
+  }
+
+  return NextResponse.json(await gerenciador.listarClientes());
+}
+
+// POST /api/clientes
+export async function POST(request: Request) {
+  const body = await request.json();
+  const { nome, cpf, email, telefone, torceFlamengo, assisteOnePiece, deSousa } = body;
+
+  if (!nome || !cpf || !email || !telefone) {
+    return NextResponse.json({ erro: "Campos obrigatorios faltando" }, { status: 400 });
+  }
+
+  try {
+    const novo = await gerenciador.cadastrarCliente(
+      nome, cpf, email, telefone,
+      torceFlamengo || false,
+      assisteOnePiece || false,
+      deSousa || false
+    );
+    return NextResponse.json(novo, { status: 201 });
+  } catch (erro: any) {
+    if (erro.code === "23505") {
+      return NextResponse.json({ erro: "CPF ja cadastrado" }, { status: 400 });
+    }
+    return NextResponse.json({ erro: "Erro interno" }, { status: 500 });
+  }
+}
+```
+
+---
+
+### Arquivo 6/8: src/app/api/clientes/[id]/route.ts
+
+**SUBSTITUIR O ARQUIVO INTEIRO:**
+
+```typescript
+import { NextResponse } from "next/server";
+import gerenciador from "@/lib/dados";
+
+// GET /api/clientes/1
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const cliente = await gerenciador.buscarClientePorId(Number(id));
+  if (!cliente) {
+    return NextResponse.json({ erro: "Cliente nao encontrado" }, { status: 404 });
+  }
+  return NextResponse.json(cliente);
+}
+
+// PUT /api/clientes/1
+export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const body = await request.json();
+  const atualizado = await gerenciador.atualizarCliente(Number(id), body);
+  if (!atualizado) {
+    return NextResponse.json({ erro: "Cliente nao encontrado" }, { status: 404 });
+  }
+  return NextResponse.json(atualizado);
+}
+
+// DELETE /api/clientes/1
+export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  try {
+    const removido = await gerenciador.removerCliente(Number(id));
+    if (!removido) {
+      return NextResponse.json({ erro: "Cliente nao encontrado" }, { status: 404 });
+    }
+    return NextResponse.json({ mensagem: "Removido com sucesso" });
+  } catch (erro: any) {
+    if (erro.code === "23503") {
+      return NextResponse.json(
+        { erro: "Nao e possivel remover: este cliente tem vendas associadas" },
+        { status: 400 }
+      );
+    }
+    return NextResponse.json({ erro: "Erro interno" }, { status: 500 });
+  }
+}
+```
+
+---
+
+### Arquivo 7/8: src/app/api/vendas/route.ts
+
+**SUBSTITUIR O ARQUIVO INTEIRO:**
+
+```typescript
+import { NextResponse } from "next/server";
+import gerenciador from "@/lib/dados";
+
+// GET /api/vendas
+export async function GET() {
+  return NextResponse.json(await gerenciador.listarVendas());
+}
+
+// POST /api/vendas
+export async function POST(request: Request) {
+  const body = await request.json();
+  const { clienteId, doceId, quantidade } = body;
+
+  if (!clienteId || !doceId || !quantidade) {
+    return NextResponse.json({ erro: "Campos obrigatorios faltando" }, { status: 400 });
+  }
+
+  const resultado = await gerenciador.registrarVenda(Number(clienteId), Number(doceId), Number(quantidade));
+
+  // se retornou string, eh uma mensagem de erro
+  if (typeof resultado === "string") {
+    return NextResponse.json({ erro: resultado }, { status: 400 });
+  }
+
+  return NextResponse.json(resultado, { status: 201 });
+}
+```
+
+---
+
+### Arquivo 8/8: src/app/api/relatorio/route.ts
+
+**SUBSTITUIR O ARQUIVO INTEIRO:**
+
+```typescript
+import { NextResponse } from "next/server";
+import gerenciador from "@/lib/dados";
+
+// GET /api/relatorio
+export async function GET() {
+  return NextResponse.json(await gerenciador.gerarRelatorio());
+}
+```
+
+---
+
+## Comandos para commitar
+
+Apos copiar todos os 8 arquivos:
+
+```bash
+git add src/services/GerenciadorDoceria.ts src/lib/dados.ts src/app/api/doces/route.ts src/app/api/doces/\[id\]/route.ts src/app/api/clientes/route.ts src/app/api/clientes/\[id\]/route.ts src/app/api/vendas/route.ts src/app/api/relatorio/route.ts
+git commit -m "feat(db): migrar GerenciadorDoceria para PostgreSQL"
+git push
+```
+
+---
+
+## Teste rapido apos commitar
+
+```bash
+npm run dev
+```
+
+Abrir no navegador: http://localhost:3303
+
+- Dashboard deve mostrar 5 doces, 3 clientes
+- Cadastrar um doce novo → recarregar → dado persiste
+- Registrar uma venda → estoque diminui
+- Parar o servidor (Ctrl+C) e reiniciar → dados continuam la

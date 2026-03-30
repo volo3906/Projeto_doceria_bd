@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Cake, Users, ShoppingCart, BarChart3, Home } from "lucide-react";
+import { Cake, Users, ShoppingCart, BarChart3, Home, User } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -19,6 +19,7 @@ const menuItems = [
   { titulo: "Inicio", href: "/", icone: Home },
   { titulo: "Doces", href: "/doces", icone: Cake },
   { titulo: "Clientes", href: "/clientes", icone: Users },
+  { titulo: "Vendedores", href: "/vendedores", icone: User },
   { titulo: "Vendas", href: "/vendas", icone: ShoppingCart },
   { titulo: "Relatorios", href: "/relatorios", icone: BarChart3 },
 ];
