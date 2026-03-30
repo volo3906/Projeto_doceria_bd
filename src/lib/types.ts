@@ -20,11 +20,22 @@ export interface Cliente {
   deSousa: boolean;
 }
 
+export interface Vendedor {
+  id: number;
+  nome: string;
+  email: string;
+  telefone: string;
+  cpf: string;
+}
+
 export interface Venda {
   id: number;
   clienteId: number;
   doceId: number;
+  vendedorId: number;
   quantidade: number;
   valorTotal: number;
   dataVenda: string;
+  formaPagamento: "cartao" | "boleto" | "pix" | "berries" | "dinheiro";
+  statusPagamento?: "confirmado" | "pendente" | "recusado";
 }

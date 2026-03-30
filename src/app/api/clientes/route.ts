@@ -23,6 +23,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ erro: "Campos obrigatorios faltando" }, { status: 400 });
   }
 
+  // valida formato de email simples
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return NextResponse.json({ erro: "Email invalido" }, { status: 400 });
+  }
+
   try {
     const novo = await gerenciador.cadastrarCliente(
       nome, cpf, email, telefone,

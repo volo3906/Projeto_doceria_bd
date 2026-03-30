@@ -109,6 +109,13 @@ export default function ClientesPage() {
       return;
     }
 
+    // valida formato de email simples
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      toast.error("Email invalido");
+      return;
+    }
+
     const dados = {
       nome,
       cpf,

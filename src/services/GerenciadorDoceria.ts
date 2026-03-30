@@ -276,8 +276,15 @@ export class GerenciadorDoceria {
     return vendas;
   }
 
-  // registra uma venda usando transacao (valida cliente, doce, estoque)
-  async registrarVenda(clienteId: number, doceId: number, quantidade: number) {
+  // registra uma venda usando transacao (valida cliente, doce, vendedor, estoque)
+  async registrarVenda(
+    clienteId: number,
+    doceId: number,
+    vendedorId: number,
+    quantidade: number,
+    formaPagamento: "cartao" | "boleto" | "pix" | "berries" | "dinheiro",
+    statusPagamento?: "confirmado" | "pendente" | "recusado"
+  ) {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -290,6 +297,16 @@ export class GerenciadorDoceria {
       if (clienteRes.rows.length === 0) {
         await client.query("ROLLBACK");
         return "Cliente nao encontrado";
+      }
+
+      // verifica se o vendedor existe
+      const vendedorRes = await client.query(
+        "SELECT id FROM vendedores WHERE id = $1",
+        [vendedorId]
+      );
+      if (vendedorRes.rows.length === 0) {
+        await client.query("ROLLBACK");
+        return "Vendedor nao encontrado";
       }
 
       // busca o doce e trava a linha pra ninguem mexer enquanto processa
@@ -316,12 +333,20 @@ export class GerenciadorDoceria {
         [quantidade, doceId]
       );
 
-      // calcula o valor total e insere a venda
+      // calcula o valor total
       const valorTotal = parseFloat(doce.preco) * quantidade;
+
+      // define o status do pagamento padrão se não for fornecido
+      let finalStatusPagamento = statusPagamento;
+      if (!finalStatusPagamento && ["cartao", "boleto", "pix", "berries"].includes(formaPagamento)) {
+        finalStatusPagamento = "pendente";
+      }
+
+      // insere a venda
       const vendaRes = await client.query(
-        `INSERT INTO vendas (cliente_id, doce_id, quantidade, valor_total)
-         VALUES ($1, $2, $3, $4) RETURNING *`,
-        [clienteId, doceId, quantidade, valorTotal]
+        `INSERT INTO vendas (cliente_id, doce_id, vendedor_id, quantidade, valor_total, forma_pagamento, status_pagamento)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+        [clienteId, doceId, vendedorId, quantidade, valorTotal, formaPagamento, finalStatusPagamento]
       );
 
       await client.query("COMMIT");
@@ -344,6 +369,102 @@ export class GerenciadorDoceria {
       "SELECT COALESCE(SUM(valor_total), 0) as total FROM vendas"
     );
     return parseFloat(resultado.rows[0].total);
+  }
+
+  // ==================== VENDEDORES ====================
+
+  async listarVendedores() {
+    const resultado = await pool.query("SELECT * FROM vendedores ORDER BY id");
+    let vendedores = [];
+    for (const row of resultado.rows) {
+      vendedores.push(this.formatarVendedor(row));
+    }
+    return vendedores;
+  }
+
+  async buscarVendedorPorId(id: number) {
+    const resultado = await pool.query("SELECT * FROM vendedores WHERE id = $1", [id]);
+    if (resultado.rows.length === 0) return null;
+    return this.formatarVendedor(resultado.rows[0]);
+  }
+
+  async buscarVendedoresPorNome(nome: string) {
+    const resultado = await pool.query(
+      "SELECT * FROM vendedores WHERE LOWER(nome) LIKE $1 ORDER BY id",
+      [`%${nome.toLowerCase()}%`]
+    );
+    let vendedores = [];
+    for (const row of resultado.rows) {
+      vendedores.push(this.formatarVendedor(row));
+    }
+    return vendedores;
+  }
+
+  async cadastrarVendedor(
+    nome: string,
+    email: string,
+    telefone: string,
+    cpf: string
+  ) {
+    const cpfLimpo = somenteDigitos(cpf);
+    const telLimpo = somenteDigitos(telefone);
+
+    const resultado = await pool.query(
+      `INSERT INTO vendedores (nome, cpf, email, telefone)
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [nome, cpfLimpo, email, telLimpo]
+    );
+    return this.formatarVendedor(resultado.rows[0]);
+  }
+
+  async atualizarVendedor(id: number, dados: {
+    nome?: string;
+    email?: string;
+    telefone?: string;
+    cpf?: string;
+  }) {
+    const existe = await pool.query("SELECT id FROM vendedores WHERE id = $1", [id]);
+    if (existe.rows.length === 0) return null;
+
+    const campos: string[] = [];
+    const valores: any[] = [];
+    let contador = 1;
+
+    if (dados.nome !== undefined) {
+      campos.push(`nome = $${contador++}`);
+      valores.push(dados.nome);
+    }
+    if (dados.email !== undefined) {
+      campos.push(`email = $${contador++}`);
+      valores.push(dados.email);
+    }
+    if (dados.telefone !== undefined) {
+      campos.push(`telefone = $${contador++}`);
+      valores.push(somenteDigitos(dados.telefone));
+    }
+    if (dados.cpf !== undefined) {
+      campos.push(`cpf = $${contador++}`);
+      valores.push(somenteDigitos(dados.cpf));
+    }
+
+    if (campos.length === 0) return null;
+
+    valores.push(id);
+    const resultado = await pool.query(
+      `UPDATE vendedores SET ${campos.join(", ")} WHERE id = $${contador} RETURNING *`,
+      valores
+    );
+    return this.formatarVendedor(resultado.rows[0]);
+  }
+
+  async removerVendedor(id: number): Promise<boolean> {
+    const resultado = await pool.query("DELETE FROM vendedores WHERE id = $1", [id]);
+    return (resultado.rowCount ?? 0) > 0;
+  }
+
+  async contarVendedores(): Promise<number> {
+    const resultado = await pool.query("SELECT COUNT(*) FROM vendedores");
+    return parseInt(resultado.rows[0].count);
   }
 
   // ==================== RELATORIOS ====================
@@ -399,9 +520,22 @@ export class GerenciadorDoceria {
       id: row.id,
       clienteId: row.cliente_id,
       doceId: row.doce_id,
+      vendedorId: row.vendedor_id,
       quantidade: row.quantidade,
       valorTotal: parseFloat(row.valor_total),
       dataVenda: new Date(row.data_venda).toLocaleDateString("pt-BR"),
+      formaPagamento: row.forma_pagamento,
+      statusPagamento: row.status_pagamento,
+    };
+  }
+
+  private formatarVendedor(row: any) {
+    return {
+      id: row.id,
+      nome: row.nome,
+      cpf: row.cpf,
+      email: row.email,
+      telefone: row.telefone,
     };
   }
 }

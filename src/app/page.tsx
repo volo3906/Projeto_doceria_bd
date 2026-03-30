@@ -20,9 +20,17 @@ export default function HomePage() {
   }, []);
 
   async function carregarRelatorio() {
-    const res = await fetch("/api/relatorio");
-    const dados = await res.json();
-    setRelatorio(dados);
+    try {
+      const res = await fetch("/api/relatorio");
+      if (!res.ok) {
+        console.error("Erro ao carregar relatório");
+        return;
+      }
+      const dados = await res.json();
+      setRelatorio(dados);
+    } catch (erro) {
+      console.error("Erro ao conectar com o servidor:", erro);
+    }
   }
 
   const cards = [
