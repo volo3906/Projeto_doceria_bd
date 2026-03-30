@@ -276,7 +276,9 @@ export class GerenciadorDoceria {
     return vendas;
   }
 
-  // registra uma venda usando transacao (valida cliente, doce, vendedor, estoque)
+  // registra uma venda usando a stored procedure sp_registrar_venda
+  // a procedure faz tudo: valida cliente/doce/vendedor, verifica estoque,
+  // calcula desconto automatico (5% por flag) e insere a venda
   async registrarVenda(
     clienteId: number,
     doceId: number,
@@ -285,77 +287,30 @@ export class GerenciadorDoceria {
     formaPagamento: "cartao" | "boleto" | "pix" | "berries" | "dinheiro",
     statusPagamento?: "confirmado" | "pendente" | "recusado"
   ) {
-    const client = await pool.connect();
+    // define status padrao pra formas de pagamento eletronicas
+    let finalStatus = statusPagamento;
+    if (!finalStatus && ["cartao", "boleto", "pix", "berries"].includes(formaPagamento)) {
+      finalStatus = "pendente";
+    }
+
     try {
-      await client.query("BEGIN");
-
-      // verifica se o cliente existe
-      const clienteRes = await client.query(
-        "SELECT id FROM clientes WHERE id = $1",
-        [clienteId]
-      );
-      if (clienteRes.rows.length === 0) {
-        await client.query("ROLLBACK");
-        return "Cliente nao encontrado";
-      }
-
-      // verifica se o vendedor existe
-      const vendedorRes = await client.query(
-        "SELECT id FROM vendedores WHERE id = $1",
-        [vendedorId]
-      );
-      if (vendedorRes.rows.length === 0) {
-        await client.query("ROLLBACK");
-        return "Vendedor nao encontrado";
-      }
-
-      // busca o doce e trava a linha pra ninguem mexer enquanto processa
-      const doceRes = await client.query(
-        "SELECT * FROM doces WHERE id = $1 FOR UPDATE",
-        [doceId]
-      );
-      if (doceRes.rows.length === 0) {
-        await client.query("ROLLBACK");
-        return "Doce nao encontrado";
-      }
-
-      const doce = doceRes.rows[0];
-
-      // verifica estoque
-      if (doce.estoque < quantidade) {
-        await client.query("ROLLBACK");
-        return "Estoque insuficiente";
-      }
-
-      // desconta o estoque
-      await client.query(
-        "UPDATE doces SET estoque = estoque - $1 WHERE id = $2",
-        [quantidade, doceId]
+      const resultado = await pool.query(
+        `SELECT * FROM sp_registrar_venda($1, $2, $3, $4, $5, $6)`,
+        [clienteId, doceId, vendedorId, quantidade, formaPagamento, finalStatus || null]
       );
 
-      // calcula o valor total
-      const valorTotal = parseFloat(doce.preco) * quantidade;
-
-      // define o status do pagamento padrão se não for fornecido
-      let finalStatusPagamento = statusPagamento;
-      if (!finalStatusPagamento && ["cartao", "boleto", "pix", "berries"].includes(formaPagamento)) {
-        finalStatusPagamento = "pendente";
+      const row = resultado.rows[0];
+      return {
+        ...this.formatarVenda(row),
+        descontoAplicado: parseFloat(row.desconto_aplicado),
+      };
+    } catch (erro: any) {
+      // a procedure levanta RAISE EXCEPTION com mensagens claras
+      // ex: "Cliente nao encontrado", "Estoque insuficiente"
+      if (erro.message) {
+        return erro.message;
       }
-
-      // insere a venda
-      const vendaRes = await client.query(
-        `INSERT INTO vendas (cliente_id, doce_id, vendedor_id, quantidade, valor_total, forma_pagamento, status_pagamento)
-         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-        [clienteId, doceId, vendedorId, quantidade, valorTotal, formaPagamento, finalStatusPagamento]
-      );
-
-      await client.query("COMMIT");
-      return this.formatarVenda(vendaRes.rows[0]);
-    } catch (erro) {
-      await client.query("ROLLBACK");
       throw erro;
-    } finally {
-      client.release();
     }
   }
 
