@@ -169,6 +169,8 @@ export default function VendasPage() {
   }
 
   // calcula desconto e resumo da venda em tempo real
+  const DESCONTO_MAXIMO = 15; // limite maximo de desconto (%)
+
   function calcularResumoVenda() {
     if (!clienteId || !doceId || !quantidade) return null;
 
@@ -178,17 +180,20 @@ export default function VendasPage() {
 
     if (!cliente || !doce || qtd <= 0) return null;
 
-    // calcula desconto: 5% por flag
-    let desconto = 0;
-    if (cliente.torceFlamengo) desconto += 5;
-    if (cliente.assisteOnePiece) desconto += 5;
-    if (cliente.deSousa) desconto += 5;
+    // calcula desconto: 5% por flag, maximo 15%
+    let descontoSemLimite = 0;
+    if (cliente.torceFlamengo) descontoSemLimite += 5;
+    if (cliente.assisteOnePiece) descontoSemLimite += 5;
+    if (cliente.deSousa) descontoSemLimite += 5;
+
+    const desconto = Math.min(descontoSemLimite, DESCONTO_MAXIMO);
+    const atingiuLimite = descontoSemLimite > DESCONTO_MAXIMO;
 
     const valorBruto = doce.preco * qtd;
     const valorDesconto = valorBruto * desconto / 100;
     const valorFinal = valorBruto - valorDesconto;
 
-    return { cliente, doce, qtd, desconto, valorBruto, valorDesconto, valorFinal };
+    return { cliente, doce, qtd, desconto, atingiuLimite, valorBruto, valorDesconto, valorFinal };
   }
 
   const resumo = calcularResumoVenda();
@@ -332,9 +337,16 @@ export default function VendasPage() {
                     </div>
                     {resumo.desconto > 0 && (
                       <div className="flex justify-between text-sm text-green-600">
-                        <span>Desconto ({resumo.desconto}%)</span>
+                        <span>
+                          Desconto ({resumo.desconto}%{resumo.atingiuLimite ? " — limite" : ""})
+                        </span>
                         <span>- {formatarPreco(resumo.valorDesconto)}</span>
                       </div>
+                    )}
+                    {resumo.atingiuLimite && (
+                      <p className="text-xs text-amber-600">
+                        Desconto limitado a {DESCONTO_MAXIMO}% (maximo permitido)
+                      </p>
                     )}
                     <div className="flex justify-between font-bold border-t pt-2">
                       <span>Total</span>
