@@ -13,9 +13,9 @@ CREATE TABLE doces (
 CREATE TABLE clientes (
     id SERIAL PRIMARY KEY,
     nome VARCHAR(100) NOT NULL,
-    cpf VARCHAR(14) NOT NULL UNIQUE,
+    cpf VARCHAR(11) NOT NULL UNIQUE,
     email VARCHAR(100) NOT NULL,
-    telefone VARCHAR(20) NOT NULL,
+    telefone VARCHAR(13) NOT NULL,
     torce_flamengo BOOLEAN NOT NULL DEFAULT false,
     assiste_one_piece BOOLEAN NOT NULL DEFAULT false,
     de_sousa BOOLEAN NOT NULL DEFAULT false,
@@ -40,6 +40,6 @@ INSERT INTO doces (nome, categoria, preco, estoque, fabricado_em_mari) VALUES
 ('Trufa de Morango', 'Chocolate', 6.00, 20, false);
 
 INSERT INTO clientes (nome, cpf, email, telefone, torce_flamengo, assiste_one_piece, de_sousa) VALUES
-('Joao Silva', '123.456.789-00', 'joao@email.com', '(83) 99999-0001', true, false, false),
-('Maria Oliveira', '987.654.321-00', 'maria@email.com', '(83) 99999-0002', false, true, true),
-('Pedro Santos', '111.222.333-44', 'pedro@email.com', '(83) 99999-0003', false, false, false);
+('Joao Silva', '12345678900', 'joao@email.com', '5583999990001', true, false, false),
+('Maria Oliveira', '98765432100', 'maria@email.com', '5583999990002', false, true, true),
+('Pedro Santos', '11122233344', 'pedro@email.com', '5583999990003', false, false, false);
