@@ -2,58 +2,24 @@
 
 ## Visao Geral
 
-O sistema possui 3 entidades: **Doce**, **Cliente** e **Venda**.
-A Venda conecta um Cliente a um Doce, registrando a quantidade e o valor.
+O sistema possui 4 entidades: **Doce**, **Cliente**, **Vendedor** e **Venda**.
+A Venda conecta um Cliente, um Doce e um Vendedor, registrando quantidade, valor (com desconto automatico), forma de pagamento e status.
 
 ---
 
-## Diagrama ER
+## Diagrama simplificado
 
 ```
-     (_id_)                                              (_id_)
-       |                                                   |
-     (nome)                                              (nome)
-       |                                                   |
-  (categoria)                                            (cpf) *UNIQUE
-       |                                                   |
-    (preco)                                             (email)
-       |                                                   |
-   (estoque)                                           (telefone)
-       |                                                   |
-(fabricado_em_mari)                                 (torce_flamengo)
-       |                                                   |
-  (criado_em)                                      (assiste_one_piece)
-       |                                                   |
-   [ DOCE ]                                          (de_sousa)
-       |                                                   |
-     (0,N)                                            (criado_em)
-       |                                                   |
-   < contem >                                        [ CLIENTE ]
-       |                                                   |
-     (1,1)                                               (0,N)
-       |                                                   |
-   [ VENDA ] ———(1,1)——— < realiza > ———(0,N)——— [ CLIENTE ]
-       |
-     (_id_)
-       |
-  (quantidade)
-       |
-  (valor_total)
-       |
-  (data_venda)
-```
-
-**Nota:** por limitacao de texto, o diagrama acima esta linearizado.
-No papel, as entidades ficam lado a lado com os losangos entre elas
-e os atributos saem como raios ao redor de cada retangulo.
-
----
-
-## Diagrama simplificado (como desenhar na prova)
-
-```
-                     (0,N)              (1,1)              (1,1)              (0,N)
-  [ CLIENTE ] ——————————— < realiza > ——————————— [ VENDA ] ——————————— < contem > ——————————— [ DOCE ]
+                (0,N)              (1,1)              (1,1)              (0,N)
+ [ CLIENTE ] ————————— < realiza > ————————— [ VENDA ] ————————— < contem > ————————— [ DOCE ]
+                                                 |
+                                               (1,1)
+                                                 |
+                                           < efetivada >
+                                                 |
+                                               (0,N)
+                                                 |
+                                          [ VENDEDOR ]
 ```
 
 ---
@@ -64,7 +30,7 @@ e os atributos saem como raios ao redor de cada retangulo.
 
 | Atributo | Tipo | Observacao |
 |----------|------|------------|
-| **_id_** | SERIAL | PK (sublinhado) |
+| **_id_** | SERIAL | PK |
 | nome | VARCHAR(100) | NOT NULL |
 | categoria | VARCHAR(50) | NOT NULL |
 | preco | NUMERIC(10,2) | NOT NULL, CHECK >= 0 |
@@ -76,28 +42,39 @@ e os atributos saem como raios ao redor de cada retangulo.
 
 | Atributo | Tipo | Observacao |
 |----------|------|------------|
-| **_id_** | SERIAL | PK (sublinhado) |
+| **_id_** | SERIAL | PK |
 | nome | VARCHAR(100) | NOT NULL |
-| cpf | VARCHAR(14) | NOT NULL, **UNIQUE** (chave candidata) |
+| cpf | VARCHAR(11) | NOT NULL, UNIQUE (somente digitos) |
 | email | VARCHAR(100) | NOT NULL |
-| telefone | VARCHAR(20) | NOT NULL |
-| torce_flamengo | BOOLEAN | NOT NULL, DEFAULT false |
-| assiste_one_piece | BOOLEAN | NOT NULL, DEFAULT false |
-| de_sousa | BOOLEAN | NOT NULL, DEFAULT false |
+| telefone | VARCHAR(13) | NOT NULL (somente digitos com DDI) |
+| torce_flamengo | BOOLEAN | NOT NULL, DEFAULT false (5% desconto) |
+| assiste_one_piece | BOOLEAN | NOT NULL, DEFAULT false (5% desconto) |
+| de_sousa | BOOLEAN | NOT NULL, DEFAULT false (5% desconto) |
+| criado_em | TIMESTAMP | NOT NULL, DEFAULT NOW() |
+
+### Vendedor
+
+| Atributo | Tipo | Observacao |
+|----------|------|------------|
+| **_id_** | SERIAL | PK |
+| nome | VARCHAR(100) | NOT NULL |
+| cpf | VARCHAR(11) | NOT NULL, UNIQUE (somente digitos) |
+| email | VARCHAR(100) | NOT NULL |
+| telefone | VARCHAR(13) | NOT NULL (somente digitos com DDI) |
 | criado_em | TIMESTAMP | NOT NULL, DEFAULT NOW() |
 
 ### Venda
 
 | Atributo | Tipo | Observacao |
 |----------|------|------------|
-| **_id_** | SERIAL | PK (sublinhado) |
+| **_id_** | SERIAL | PK |
 | quantidade | INTEGER | NOT NULL, CHECK > 0 |
-| valor_total | NUMERIC(10,2) | NOT NULL, CHECK >= 0 |
+| valor_total | NUMERIC(10,2) | NOT NULL, CHECK >= 0 (ja com desconto) |
+| forma_pagamento | VARCHAR(20) | NOT NULL, CHECK IN (cartao, boleto, pix, berries, dinheiro) |
+| status_pagamento | VARCHAR(20) | CHECK IN (confirmado, pendente, recusado) |
 | data_venda | TIMESTAMP | NOT NULL, DEFAULT NOW() |
 
-**Nota:** `cliente_id` e `doce_id` NAO sao atributos da entidade Venda no ER.
-Eles aparecem apenas no esquema relacional como FKs, resultado da conversao
-dos relacionamentos `realiza` e `contem`.
+**Nota:** `cliente_id`, `doce_id` e `vendedor_id` NAO sao atributos da entidade Venda no ER. Aparecem no esquema relacional como FKs dos relacionamentos.
 
 ---
 
@@ -107,15 +84,22 @@ dos relacionamentos `realiza` e `contem`.
 
 | Lado | Cardinalidade | Leitura |
 |------|---------------|---------|
-| Cliente | **(0,N)** | Um cliente pode ter 0 a N vendas (nem todo cliente comprou) |
-| Venda | **(1,1)** | Toda venda pertence a exatamente 1 cliente (obrigatorio) |
+| Cliente | **(0,N)** | Um cliente pode ter 0 a N vendas |
+| Venda | **(1,1)** | Toda venda pertence a exatamente 1 cliente |
 
 ### Venda contem Doce (1:N)
 
 | Lado | Cardinalidade | Leitura |
 |------|---------------|---------|
-| Doce | **(0,N)** | Um doce pode estar em 0 a N vendas (pode nunca ter sido vendido) |
-| Venda | **(1,1)** | Toda venda e de exatamente 1 doce (obrigatorio) |
+| Doce | **(0,N)** | Um doce pode estar em 0 a N vendas |
+| Venda | **(1,1)** | Toda venda e de exatamente 1 doce |
+
+### Venda efetivada por Vendedor (1:N)
+
+| Lado | Cardinalidade | Leitura |
+|------|---------------|---------|
+| Vendedor | **(0,N)** | Um vendedor pode ter 0 a N vendas |
+| Venda | **(1,1)** | Toda venda e efetivada por exatamente 1 vendedor |
 
 ---
 
@@ -123,21 +107,25 @@ dos relacionamentos `realiza` e `contem`.
 
 | Restricao | Onde | Descricao |
 |-----------|------|-----------|
-| PK | doces.id, clientes.id, vendas.id | Identificador unico, NOT NULL |
-| UNIQUE | clientes.cpf | Nao permite dois clientes com mesmo CPF |
+| PK | todas as tabelas | Identificador unico, NOT NULL |
+| UNIQUE | clientes.cpf, vendedores.cpf | Nao permite CPF duplicado |
 | FK RESTRICT | vendas.cliente_id → clientes.id | Nao pode deletar cliente com vendas |
 | FK RESTRICT | vendas.doce_id → doces.id | Nao pode deletar doce com vendas |
-| CHECK | doces.preco >= 0 | Preco nao pode ser negativo |
-| CHECK | doces.estoque >= 0 | Estoque nao pode ser negativo |
-| CHECK | vendas.quantidade > 0 | Venda precisa de pelo menos 1 unidade |
-| CHECK | vendas.valor_total >= 0 | Valor da venda nao pode ser negativo |
+| FK RESTRICT | vendas.vendedor_id → vendedores.id | Nao pode deletar vendedor com vendas |
+| CHECK | doces.preco >= 0 | Preco nao negativo |
+| CHECK | doces.estoque >= 0 | Estoque nao negativo |
+| CHECK | vendas.quantidade > 0 | Pelo menos 1 unidade |
+| CHECK | vendas.forma_pagamento | Valores validos: cartao, boleto, pix, berries, dinheiro |
+| CHECK | vendas.status_pagamento | Valores validos: confirmado, pendente, recusado |
 
 ---
 
-## Observacoes sobre a Modelagem
+## Objetos do Banco (Parte 2)
 
-- **Nao ha entidades fracas:** todas as entidades possuem PK propria (id SERIAL)
-- **Nao ha atributos compostos:** todos os atributos sao simples/atomicos
-- **Nao ha atributos multivalorados:** cada campo guarda um unico valor
-- **Nao ha auto-relacionamento:** nenhuma entidade se relaciona consigo mesma
-- **CPF e chave candidata:** poderia ser PK mas usamos id numerico por conveniencia
+### View: vw_clientes_com_desconto
+Lista clientes que possuem alguma flag de desconto ativa.
+Usada pela stored procedure pra verificar elegibilidade.
+
+### Stored Procedure: sp_registrar_venda
+Registra venda atomicamente: valida cliente/doce/vendedor, verifica estoque,
+calcula desconto (5% por flag via view), desconta estoque e insere a venda.

@@ -64,20 +64,46 @@ class Cliente {
     +exibirDetalhes(): void
 }
 
+class Vendedor {
+    -id: number
+    -nome: string
+    -cpf: string
+    -email: string
+    -telefone: string
+    +constructor(nome, cpf, email, telefone, id?)
+    +getId(): number
+    +getNome(): string
+    +getCpf(): string
+    +getEmail(): string
+    +getTelefone(): string
+    +setNome(novoNome: string): void
+    +setCpf(novoCpf: string): void
+    +setEmail(novoEmail: string): void
+    +setTelefone(novoTelefone: string): void
+    +toObject(): object
+    +exibirDetalhes(): void
+}
+
 class Venda {
     -id: number
     -clienteId: number
     -doceId: number
+    -vendedorId: number
     -quantidade: number
     -valorTotal: number
     -dataVenda: string
-    +constructor(clienteId, doceId, quantidade, valorTotal, dataVenda, id?)
+    -formaPagamento: string
+    -statusPagamento: string
+    +constructor(clienteId, doceId, vendedorId, quantidade, valorTotal, dataVenda, formaPagamento, statusPagamento?, id?)
     +getId(): number
     +getClienteId(): number
     +getDoceId(): number
+    +getVendedorId(): number
     +getQuantidade(): number
     +getValorTotal(): number
     +getDataVenda(): string
+    +getFormaPagamento(): string
+    +getStatusPagamento(): string
     +toObject(): object
     +exibirDetalhes(): void
 }
@@ -100,23 +126,33 @@ class GerenciadorDoceria {
     +atualizarCliente(id: number, dados: object): Promise~object~
     +removerCliente(id: number): Promise~boolean~
     +contarClientes(): Promise~number~
+    +listarVendedores(): Promise~object[]~
+    +buscarVendedorPorId(id: number): Promise~object~
+    +buscarVendedoresPorNome(nome: string): Promise~object[]~
+    +cadastrarVendedor(nome, email, telefone, cpf): Promise~object~
+    +atualizarVendedor(id: number, dados: object): Promise~object~
+    +removerVendedor(id: number): Promise~boolean~
+    +contarVendedores(): Promise~number~
     +listarVendas(): Promise~object[]~
     +buscarVendaPorId(id: number): Promise~object~
     +buscarVendasPorCliente(clienteId: number): Promise~object[]~
-    +registrarVenda(clienteId, doceId, quantidade): Promise~object | string~
+    +registrarVenda(clienteId, doceId, vendedorId, quantidade, formaPagamento, statusPagamento?): Promise~object | string~
     +contarVendas(): Promise~number~
     +calcularTotalVendido(): Promise~number~
     +gerarRelatorio(): Promise~object~
     -formatarDoce(row: any): object
     -formatarCliente(row: any): object
     -formatarVenda(row: any): object
+    -formatarVendedor(row: any): object
 }
 
 GerenciadorDoceria ..> Doce : consulta via SQL
 GerenciadorDoceria ..> Cliente : consulta via SQL
-GerenciadorDoceria ..> Venda : consulta via SQL
+GerenciadorDoceria ..> Venda : via stored procedure
+GerenciadorDoceria ..> Vendedor : consulta via SQL
 Venda "*" --> "1" Cliente : FK cliente_id
 Venda "*" --> "1" Doce : FK doce_id
+Venda "*" --> "1" Vendedor : FK vendedor_id
 ```
 
 ---
@@ -138,11 +174,12 @@ Venda "*" --> "1" Doce : FK doce_id
 |--------|-----------|---------|-------|
 | Doce | 6 | 16 | 22 |
 | Cliente | 8 | 17 | 25 |
-| Venda | 6 | 8 | 14 |
-| GerenciadorDoceria | 0 | 27 (24 publicos + 3 privados) | 27 |
-| **Total** | **20** | **68** | **88** |
+| Vendedor | 5 | 11 | 16 |
+| Venda | 9 | 11 | 20 |
+| GerenciadorDoceria | 0 | 35 (31 publicos + 4 privados) | 35 |
+| **Total** | **28** | **90** | **118** |
 
-> **Nota:** O GerenciadorDoceria nao tem mais atributos (arrays/contadores). Os dados agora ficam no PostgreSQL. Os 3 metodos privados (`formatarDoce`, `formatarCliente`, `formatarVenda`) fazem o mapeamento `snake_case` → `camelCase`.
+> **Nota:** O GerenciadorDoceria nao tem atributos (dados ficam no PostgreSQL). Os 4 metodos privados fazem o mapeamento `snake_case` → `camelCase`. O metodo `registrarVenda` chama a stored procedure `sp_registrar_venda` que aplica desconto automatico.
 
 ---
 
@@ -150,8 +187,10 @@ Venda "*" --> "1" Doce : FK doce_id
 
 | Relacao | Tipo | Descricao |
 |---------|------|-----------|
-| GerenciadorDoceria → Doce | Dependencia | O gerenciador consulta a tabela `doces` via SQL |
-| GerenciadorDoceria → Cliente | Dependencia | O gerenciador consulta a tabela `clientes` via SQL |
-| GerenciadorDoceria → Venda | Dependencia | O gerenciador consulta a tabela `vendas` via SQL |
-| Venda → Cliente | FK (N:1) | `cliente_id` referencia `clientes(id)` com ON DELETE RESTRICT |
-| Venda → Doce | FK (N:1) | `doce_id` referencia `doces(id)` com ON DELETE RESTRICT |
+| GerenciadorDoceria → Doce | Dependencia | Consulta tabela `doces` via SQL |
+| GerenciadorDoceria → Cliente | Dependencia | Consulta tabela `clientes` via SQL |
+| GerenciadorDoceria → Vendedor | Dependencia | Consulta tabela `vendedores` via SQL |
+| GerenciadorDoceria → Venda | Dependencia | Registra via stored procedure `sp_registrar_venda` |
+| Venda → Cliente | FK (N:1) | `cliente_id` referencia `clientes(id)` ON DELETE RESTRICT |
+| Venda → Doce | FK (N:1) | `doce_id` referencia `doces(id)` ON DELETE RESTRICT |
+| Venda → Vendedor | FK (N:1) | `vendedor_id` referencia `vendedores(id)` ON DELETE RESTRICT |

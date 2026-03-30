@@ -60,12 +60,23 @@ O schema eh definido em `sql/init.sql` e executado automaticamente quando o cont
 |--------|------|-------------|
 | id | SERIAL | PRIMARY KEY |
 | nome | VARCHAR(100) | NOT NULL |
-| cpf | VARCHAR(14) | NOT NULL, UNIQUE |
+| cpf | VARCHAR(11) | NOT NULL, UNIQUE (somente digitos) |
 | email | VARCHAR(100) | NOT NULL |
-| telefone | VARCHAR(20) | NOT NULL |
+| telefone | VARCHAR(13) | NOT NULL (somente digitos com DDI) |
 | torce_flamengo | BOOLEAN | NOT NULL, DEFAULT false |
 | assiste_one_piece | BOOLEAN | NOT NULL, DEFAULT false |
 | de_sousa | BOOLEAN | NOT NULL, DEFAULT false |
+| criado_em | TIMESTAMP | NOT NULL, DEFAULT NOW() |
+
+### Tabela `vendedores`
+
+| Coluna | Tipo | Constraints |
+|--------|------|-------------|
+| id | SERIAL | PRIMARY KEY |
+| nome | VARCHAR(100) | NOT NULL |
+| cpf | VARCHAR(11) | NOT NULL, UNIQUE (somente digitos) |
+| email | VARCHAR(100) | NOT NULL |
+| telefone | VARCHAR(13) | NOT NULL (somente digitos com DDI) |
 | criado_em | TIMESTAMP | NOT NULL, DEFAULT NOW() |
 
 ### Tabela `vendas`
@@ -75,19 +86,27 @@ O schema eh definido em `sql/init.sql` e executado automaticamente quando o cont
 | id | SERIAL | PRIMARY KEY |
 | cliente_id | INTEGER | NOT NULL, FK → clientes(id) ON DELETE RESTRICT |
 | doce_id | INTEGER | NOT NULL, FK → doces(id) ON DELETE RESTRICT |
+| vendedor_id | INTEGER | NOT NULL, FK → vendedores(id) ON DELETE RESTRICT |
 | quantidade | INTEGER | NOT NULL, CHECK > 0 |
-| valor_total | NUMERIC(10,2) | NOT NULL, CHECK >= 0 |
+| valor_total | NUMERIC(10,2) | NOT NULL, CHECK >= 0 (com desconto) |
+| forma_pagamento | VARCHAR(20) | NOT NULL, CHECK IN (cartao, boleto, pix, berries, dinheiro) |
+| status_pagamento | VARCHAR(20) | CHECK IN (confirmado, pendente, recusado) |
 | data_venda | TIMESTAMP | NOT NULL, DEFAULT NOW() |
 
 ### Diagrama de Relacionamentos
 
 ```
 doces (1) ←──── (N) vendas (N) ────→ (1) clientes
+                       |
+                       N
+                       |
+               vendedores (1)
 ```
 
 - Um doce pode estar em varias vendas
 - Um cliente pode ter varias vendas
-- Cada venda referencia exatamente um doce e um cliente
+- Um vendedor pode efetivar varias vendas
+- Cada venda referencia exatamente um doce, um cliente e um vendedor
 
 ---
 
@@ -98,17 +117,20 @@ doces (1) ←──── (N) vendas (N) ────→ (1) clientes
 As FKs de `vendas` usam `ON DELETE RESTRICT`, ou seja:
 - **Nao eh possivel deletar um doce** que ja foi vendido
 - **Nao eh possivel deletar um cliente** que ja fez uma compra
+- **Nao eh possivel deletar um vendedor** que ja efetivou uma venda
 
 Isso garante que o historico de vendas nunca fique com referencias quebradas.
 
 ### UNIQUE no CPF
 
-A coluna `cpf` da tabela `clientes` tem constraint UNIQUE. O sistema retorna erro se tentar cadastrar dois clientes com o mesmo CPF.
+As colunas `cpf` de `clientes` e `vendedores` tem constraint UNIQUE. CPFs sao armazenados como somente digitos (11 caracteres). Telefones tambem sao somente digitos com DDI (13 caracteres).
 
 ### CHECK Constraints
 
 - `preco >= 0` e `estoque >= 0` nos doces
 - `quantidade > 0` e `valor_total >= 0` nas vendas
+- `forma_pagamento` IN (cartao, boleto, pix, berries, dinheiro)
+- `status_pagamento` IN (confirmado, pendente, recusado)
 
 Essas validacoes estao no nivel do banco, entao mesmo que a aplicacao tenha algum bug, valores invalidos nunca sao gravados.
 
@@ -130,22 +152,60 @@ O banco usa **snake_case** (padrao SQL):
 A API retorna **camelCase** (padrao JavaScript):
 - `fabricadoEmMari`, `clienteId`, `dataVenda`
 
-O mapeamento eh feito pelos metodos privados `formatarDoce()`, `formatarCliente()` e `formatarVenda()` dentro do `GerenciadorDoceria`.
+O mapeamento eh feito pelos metodos privados `formatarDoce()`, `formatarCliente()`, `formatarVenda()` e `formatarVendedor()` dentro do `GerenciadorDoceria`.
 
 ---
 
-## Transacoes
+## Stored Procedure — sp_registrar_venda
 
-O metodo `registrarVenda()` usa uma **transacao** com `BEGIN`, `COMMIT` e `ROLLBACK`:
+O registro de vendas eh feito por uma stored procedure no PostgreSQL. O codigo TypeScript chama `SELECT * FROM sp_registrar_venda(...)` em vez de fazer a logica manualmente.
 
-1. Verifica se o cliente existe
-2. Busca o doce com `SELECT ... FOR UPDATE` (trava a linha pra evitar condicao de corrida)
+A procedure faz tudo atomicamente:
+
+1. Verifica se o cliente, doce e vendedor existem
+2. Busca o doce com `FOR UPDATE` (trava a linha)
 3. Verifica se tem estoque suficiente
-4. Desconta o estoque
-5. Insere a venda com o valor total calculado
-6. Faz COMMIT se tudo deu certo, ou ROLLBACK se algo falhou
+4. Consulta a view `vw_clientes_com_desconto` pra verificar elegibilidade
+5. Calcula desconto: 5% por flag ativa (flamengo, one piece, sousa), soma direta ate 15%
+6. Calcula valor total com desconto aplicado
+7. Desconta o estoque
+8. Insere a venda
+9. Retorna a venda criada + percentual de desconto
 
 O `FOR UPDATE` garante que duas vendas simultaneas do mesmo doce nao vendam mais do que tem em estoque.
+
+---
+
+## View — vw_clientes_com_desconto
+
+View que lista os clientes elegiveis a desconto (pelo menos uma flag ativa):
+
+```sql
+SELECT * FROM vw_clientes_com_desconto;
+```
+
+Usada pela stored procedure pra verificar se o cliente tem desconto antes de calcular o valor.
+
+---
+
+## Sistema de Migrations
+
+Em vez de recriar o banco pra aplicar mudancas no schema, o projeto usa migrations sequenciais:
+
+- **Pasta:** `sql/migrations/` (arquivos numerados: 001, 002, 003...)
+- **Script:** `node scripts/migrate.mjs` — roda as migrations pendentes
+- **Controle:** tabela `migrations_executadas` registra quais ja rodaram
+- Cada migration roda em transacao (COMMIT/ROLLBACK)
+
+```bash
+# rodar migrations pendentes
+node scripts/migrate.mjs
+```
+
+### Migrations existentes:
+- `001_normalizar_cpf_telefone.sql` — converte CPF/telefone pra somente digitos
+- `002_criar_views.sql` — cria view de clientes com desconto
+- `003_stored_procedure_registrar_venda.sql` — cria procedure de venda com desconto
 
 ---
 
@@ -203,15 +263,23 @@ Para conectar remotamente, basta trocar `localhost` pelo IP do servidor na `DATA
 Projeto_doceria_bd/
 ├── docker-compose.yml          # container PostgreSQL
 ├── sql/
-│   └── init.sql                # schema + dados iniciais
+│   ├── init.sql                # schema + dados iniciais
+│   ├── views.sql               # views (referencia)
+│   └── migrations/             # migrations sequenciais
+│       ├── 001_normalizar_cpf_telefone.sql
+│       ├── 002_criar_views.sql
+│       └── 003_stored_procedure_registrar_venda.sql
+├── scripts/
+│   └── migrate.mjs             # roda migrations pendentes
 ├── .env                        # credenciais (gitignored)
 ├── .env.example                # template de credenciais
 └── src/
     ├── lib/
     │   ├── db.ts               # pool de conexao
-    │   └── dados.ts            # instancia do gerenciador
+    │   ├── dados.ts            # instancia do gerenciador
+    │   └── utils.ts            # helpers de formatacao (CPF, telefone, preco)
     └── services/
-        └── GerenciadorDoceria.ts   # 24 metodos async com SQL
+        └── GerenciadorDoceria.ts   # operacoes do sistema + stored procedure
 ```
 
 ---
@@ -222,5 +290,6 @@ O `init.sql` insere dados de demonstracao na primeira vez que o banco eh criado:
 
 - **5 doces:** Brigadeiro, Beijinho, Cajuzinho, Cocada, Trufa de Morango
 - **3 clientes:** Joao Silva, Maria Oliveira, Pedro Santos
+- **3 vendedores:** Ana Silva, Carlos Souza, Lucia Martins
 
-Esses dados permitem testar o sistema sem precisar cadastrar tudo manualmente.
+CPFs e telefones no seed data sao armazenados como somente digitos. A formatacao (123.456.789-00, +55 (83) 99999-0001) eh feita no frontend.

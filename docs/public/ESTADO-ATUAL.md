@@ -6,7 +6,7 @@
 
 ## Visao Geral
 
-O sistema Doceria Gourmet e uma aplicacao web para gerenciamento de uma doceria. Permite cadastrar doces, clientes e registrar vendas, com relatorios de estoque, clientes e vendas.
+O sistema Doceria Gourmet e uma aplicacao web para gerenciamento de uma doceria. Permite cadastrar doces, clientes e vendedores, registrar vendas com desconto automatico, e gerar relatorios de estoque, clientes e vendas.
 
 **Stack atual:**
 - Backend: Next.js 16 (API Routes) + TypeScript
@@ -15,13 +15,13 @@ O sistema Doceria Gourmet e uma aplicacao web para gerenciamento de uma doceria.
 - Conexao: biblioteca `pg` (node-postgres) com pool de conexoes
 - OOP: classes de modelo mantidas no repositorio (avaliadas na Parte 1)
 
-**Status:** funcional, com persistencia em PostgreSQL.
+**Status:** funcional, Parte 2 em andamento. Persistencia em PostgreSQL com stored procedure e views.
 
 ---
 
 ## Entidades
 
-O sistema possui 3 entidades principais, cada uma representada por uma classe OOP:
+O sistema possui 4 entidades principais:
 
 ### Doce
 
@@ -36,12 +36,6 @@ Representa um produto da doceria.
 | quantidadeEstoque | number | Unidades disponiveis em estoque |
 | fabricadoEmMari | boolean | Se o doce foi fabricado na cidade de Mari |
 
-**Metodos de negocio:**
-- `vender(quantidade)` — verifica se ha estoque suficiente e desconta. Retorna `true` se a venda foi possivel, `false` se nao
-- `reabastecer(quantidade)` — adiciona unidades ao estoque
-- `aplicarDesconto(porcentagem)` — reduz o preco pela porcentagem informada
-- `toObject()` — converte para objeto simples para a API (mapeia `quantidadeEstoque` para `estoque`)
-
 ### Cliente
 
 Representa um cliente da doceria.
@@ -50,15 +44,26 @@ Representa um cliente da doceria.
 |----------|------|-----------|
 | id | number | Identificador unico (gerado automaticamente) |
 | nome | string | Nome completo |
-| cpf | string | CPF (nao pode ser alterado apos o cadastro) |
+| cpf | string | CPF armazenado como somente digitos (11 digitos) |
 | email | string | Email de contato |
-| telefone | string | Telefone de contato |
-| torceFlamengo | boolean | Se o cliente torce pro Flamengo (criterio de desconto) |
-| assisteOnePiece | boolean | Se o cliente assiste One Piece (criterio de desconto) |
-| deSousa | boolean | Se o cliente e da cidade de Sousa (criterio de desconto) |
+| telefone | string | Telefone armazenado como somente digitos com DDI (13 digitos) |
+| torceFlamengo | boolean | Se torce pro Flamengo (5% de desconto) |
+| assisteOnePiece | boolean | Se assiste One Piece (5% de desconto) |
+| deSousa | boolean | Se e da cidade de Sousa (5% de desconto) |
 
-**Metodos de negocio:**
-- `temDesconto()` — retorna `true` se qualquer uma das 3 flags booleanas for verdadeira
+**Desconto:** cada flag ativa vale 5%, soma direta. Maximo 15% (3 flags).
+
+### Vendedor
+
+Representa um vendedor da doceria.
+
+| Atributo | Tipo | Descricao |
+|----------|------|-----------|
+| id | number | Identificador unico (gerado automaticamente) |
+| nome | string | Nome completo |
+| cpf | string | CPF somente digitos (11 digitos) |
+| email | string | Email de contato |
+| telefone | string | Telefone somente digitos com DDI (13 digitos) |
 
 ### Venda
 
@@ -69,11 +74,14 @@ Representa uma venda realizada.
 | id | number | Identificador unico (gerado automaticamente) |
 | clienteId | number | ID do cliente que comprou |
 | doceId | number | ID do doce vendido |
+| vendedorId | number | ID do vendedor que efetivou |
 | quantidade | number | Quantidade de unidades vendidas |
-| valorTotal | number | Valor total da venda (preco * quantidade) |
-| dataVenda | string | Data da venda no formato dd/mm/aaaa |
+| valorTotal | number | Valor total com desconto aplicado |
+| formaPagamento | string | cartao, boleto, pix, berries ou dinheiro |
+| statusPagamento | string | confirmado, pendente ou recusado (pra pagamentos eletronicos) |
+| dataVenda | string | Data da venda |
 
-**Observacao:** o `valorTotal` e a `dataVenda` sao calculados automaticamente no momento do registro da venda.
+**Observacao:** o `valorTotal` e calculado automaticamente pela stored procedure, ja com desconto.
 
 ---
 
@@ -81,17 +89,18 @@ Representa uma venda realizada.
 
 Classe central que gerencia todas as operacoes do sistema. Conecta no PostgreSQL via pool de conexoes e retorna objetos formatados (mapeamento `snake_case` → `camelCase`).
 
-**Total de metodos:** 24 (todos `async`) + 3 helpers privados
-
 | Grupo | Metodos | Operacoes |
 |-------|---------|-----------|
-| Doces | 9 | listar, buscar por ID, buscar por nome, buscar por categoria, cadastrar, atualizar, remover, contar, calcular valor estoque |
-| Clientes | 8 | listar, buscar por ID, buscar por nome, buscar por CPF, cadastrar, atualizar, remover, contar |
-| Vendas | 6 | listar, buscar por ID, buscar por cliente, registrar (com transacao), contar, calcular total vendido |
-| Relatorios | 1 | gerar relatorio geral (totais + valores, queries em paralelo) |
-| Helpers | 3 | formatarDoce, formatarCliente, formatarVenda (privados) |
+| Doces | 9 | listar, buscar por ID/nome/categoria, cadastrar, atualizar, remover, contar, calcular valor estoque |
+| Clientes | 8 | listar, buscar por ID/nome/CPF, cadastrar, atualizar, remover, contar |
+| Vendedores | 7 | listar, buscar por ID/nome, cadastrar, atualizar, remover, contar |
+| Vendas | 6 | listar, buscar por ID/cliente, registrar (via stored procedure), contar, calcular total |
+| Relatorios | 1 | gerar relatorio geral (queries em paralelo) |
+| Helpers | 4 | formatarDoce, formatarCliente, formatarVenda, formatarVendedor (privados) |
 
-**Instancia unica:** `src/lib/dados.ts` exporta uma instancia do gerenciador. A classe agora e stateless (dados no banco), entao nao precisa mais do `globalThis`.
+**Normalizacao:** CPF e telefone sao normalizados (somente digitos) antes de salvar no banco.
+
+**Venda via procedure:** `registrarVenda()` chama a stored procedure `sp_registrar_venda` que calcula desconto, valida estoque e insere a venda atomicamente.
 
 ---
 
@@ -104,11 +113,11 @@ Todos os endpoints estao em `src/app/api/`.
 | Metodo | Rota | O que faz |
 |--------|------|-----------|
 | GET | `/api/doces` | Lista todos os doces |
-| GET | `/api/doces?nome=X` | Pesquisa doces por nome (busca parcial, case-insensitive) |
+| GET | `/api/doces?nome=X` | Pesquisa doces por nome |
 | POST | `/api/doces` | Cadastra novo doce |
 | GET | `/api/doces/[id]` | Retorna um doce especifico |
 | PUT | `/api/doces/[id]` | Atualiza campos de um doce |
-| DELETE | `/api/doces/[id]` | Remove um doce |
+| DELETE | `/api/doces/[id]` | Remove um doce (erro se tem vendas) |
 
 ### Clientes (`/api/clientes`)
 
@@ -116,23 +125,32 @@ Todos os endpoints estao em `src/app/api/`.
 |--------|------|-----------|
 | GET | `/api/clientes` | Lista todos os clientes |
 | GET | `/api/clientes?nome=X` | Pesquisa clientes por nome |
-| POST | `/api/clientes` | Cadastra novo cliente |
+| POST | `/api/clientes` | Cadastra novo cliente (erro se CPF duplicado) |
 | GET | `/api/clientes/[id]` | Retorna um cliente especifico |
 | PUT | `/api/clientes/[id]` | Atualiza campos de um cliente |
-| DELETE | `/api/clientes/[id]` | Remove um cliente |
+| DELETE | `/api/clientes/[id]` | Remove um cliente (erro se tem vendas) |
+
+### Vendedores (`/api/vendedores`)
+
+| Metodo | Rota | O que faz |
+|--------|------|-----------|
+| GET | `/api/vendedores` | Lista todos os vendedores |
+| POST | `/api/vendedores` | Cadastra novo vendedor |
+| DELETE | `/api/vendedores/[id]` | Remove um vendedor (erro se tem vendas) |
+| PATCH | `/api/vendedores/[id]` | Atualiza campos de um vendedor |
 
 ### Vendas (`/api/vendas`)
 
 | Metodo | Rota | O que faz |
 |--------|------|-----------|
 | GET | `/api/vendas` | Lista todas as vendas |
-| POST | `/api/vendas` | Registra nova venda (valida cliente, doce e estoque) |
+| POST | `/api/vendas` | Registra nova venda (via stored procedure com desconto) |
 
 ### Relatorio (`/api/relatorio`)
 
 | Metodo | Rota | O que faz |
 |--------|------|-----------|
-| GET | `/api/relatorio` | Retorna metricas gerais (totais de doces, clientes, vendas, valores) |
+| GET | `/api/relatorio` | Retorna metricas gerais |
 
 ---
 
@@ -142,22 +160,30 @@ Todos os endpoints estao em `src/app/api/`.
 
 | Pagina | Rota | Funcionalidade |
 |--------|------|----------------|
-| Home | `/` | Dashboard com 4 cards de resumo + valor em estoque |
-| Doces | `/doces` | CRUD completo: tabela, pesquisa, criar/editar via modal, visualizar detalhes, remover |
-| Clientes | `/clientes` | CRUD completo: tabela, pesquisa, criar/editar via modal com checkboxes de desconto, visualizar detalhes, remover |
-| Vendas | `/vendas` | Registrar vendas (selecionar cliente + doce + quantidade) e ver historico |
-| Relatorios | `/relatorios` | 3 secoes separadas: Estoque, Clientes e Vendas, cada uma com cards de resumo + tabela detalhada |
+| Home | `/` | Dashboard com cards de resumo + valor em estoque |
+| Doces | `/doces` | CRUD completo com pesquisa, modal, detalhes. Precos em R$ com virgula |
+| Clientes | `/clientes` | CRUD completo com mascaras de CPF/telefone, badges de desconto |
+| Vendedores | `/vendedores` | CRUD completo com mascaras de CPF/telefone |
+| Vendas | `/vendas` | Registrar vendas com resumo em tempo real (preview de desconto) |
+| Relatorios | `/relatorios` | 3 secoes: Estoque, Clientes e Vendas com cards + tabelas |
 
 ### Indicadores visuais
 
-- **Estoque baixo**: quando um doce tem menos de 5 unidades, o estoque aparece com badge vermelha
-- **Fabricado em Mari**: doces fabricados em Mari mostram uma badge "Mari" ao lado do nome
-- **Desconto**: clientes com qualquer flag de desconto ativa mostram uma badge "Desconto" ao lado do nome
-- **Total arrecadado**: valor em destaque verde na secao de vendas do relatorio
+- **Estoque baixo**: badge vermelha quando < 5 unidades
+- **Fabricado em Mari**: badge "Mari" ao lado do nome do doce
+- **Desconto**: badge "Desconto" ao lado do nome do cliente
+- **Resumo de venda**: card com valor bruto, desconto (%) e valor final em tempo real
+- **Precos**: todos em formato brasileiro (R$ 4,50)
+- **CPF**: exibido formatado (123.456.789-00) com mascara no input
+- **Telefone**: exibido formatado (+55 (83) 99999-0001) com mascara no input
+- **Vendas antigas**: campos inexistentes mostram "—" em vez de valores nulos
 
-### Componentes
+### Tratamento de erros
 
-O sistema usa 16 componentes da biblioteca shadcn/ui (badge, button, card, dialog, dropdown-menu, input, label, select, separator, sheet, sidebar, skeleton, sonner, table, textarea, tooltip) alem de 2 componentes proprios (AppLayout e AppSidebar).
+- Todas as paginas mostram toast de erro quando a API falha
+- DELETE com FK RESTRICT: "Nao e possivel remover: tem vendas associadas"
+- CPF duplicado: "CPF ja cadastrado"
+- Falha de conexao: "Erro ao conectar com o servidor"
 
 ---
 
@@ -165,28 +191,34 @@ O sistema usa 16 componentes da biblioteca shadcn/ui (badge, button, card, dialo
 
 | Regra | Descricao | Onde e verificada |
 |-------|-----------|-------------------|
-| Validacao de estoque | Uma venda so e registrada se houver estoque suficiente | `GerenciadorDoceria.registrarVenda()` (transacao com FOR UPDATE) |
-| Cliente obrigatorio na venda | O cliente precisa existir para registrar uma venda | `GerenciadorDoceria.registrarVenda()` |
-| Doce obrigatorio na venda | O doce precisa existir para registrar uma venda | `GerenciadorDoceria.registrarVenda()` |
-| Campos obrigatorios | Doce: nome, categoria, preco, estoque. Cliente: nome, cpf, email, telefone | API routes (POST) + constraints NOT NULL no banco |
-| CPF unico | Nao pode cadastrar dois clientes com o mesmo CPF | Constraint UNIQUE no banco (erro 23505) |
-| CPF imutavel | O CPF de um cliente nao pode ser alterado depois do cadastro | Frontend (campo desabilitado na edicao) |
-| Preco nao-negativo | O preco nao pode ser negativo | CHECK constraint no banco (`preco >= 0`) |
-| Quantidade nao-negativa | O estoque nao pode ser negativo | CHECK constraint no banco (`estoque >= 0`) |
-| Integridade referencial | Nao e possivel deletar um doce ou cliente que tem vendas | FK com ON DELETE RESTRICT (erro 23503) |
+| Validacao de estoque | Venda so e registrada se houver estoque suficiente | Stored procedure `sp_registrar_venda` (FOR UPDATE) |
+| Desconto automatico | 5% por flag ativa (flamengo, one piece, sousa), soma direta ate 15% | Stored procedure consulta view `vw_clientes_com_desconto` |
+| Cliente obrigatorio | O cliente precisa existir para registrar venda | Stored procedure |
+| Doce obrigatorio | O doce precisa existir para registrar venda | Stored procedure |
+| Vendedor obrigatorio | O vendedor precisa existir para registrar venda | Stored procedure |
+| Forma de pagamento | Obrigatoria em toda venda (cartao, boleto, pix, berries, dinheiro) | CHECK constraint no banco |
+| Status de pagamento | Obrigatorio para cartao/boleto/pix/berries | Frontend + backend |
+| CPF unico | Nao pode cadastrar dois clientes/vendedores com mesmo CPF | UNIQUE constraint (erro 23505) |
+| CPF imutavel | CPF nao pode ser alterado apos cadastro | Frontend (campo desabilitado) |
+| CPF/telefone normalizado | Armazenados somente como digitos | Backend normaliza antes de salvar |
+| Preco nao-negativo | Preco nao pode ser negativo | CHECK constraint (`preco >= 0`) |
+| Integridade referencial | Nao pode deletar doce/cliente/vendedor com vendas | FK ON DELETE RESTRICT (erro 23503) |
 
 ---
 
 ## Persistencia de Dados
 
-**Situacao atual:** os dados sao persistidos em PostgreSQL 16. O banco roda em um container Docker (porta 5433) e os dados sobrevivem a reinicializacoes do servidor e do container.
+**Banco:** PostgreSQL 16 (Docker, porta 5433).
 
-**Detalhes:**
-- 3 tabelas: `doces`, `clientes`, `vendas`
-- IDs gerados pelo banco (`SERIAL`)
-- Constraints de integridade: PK, FK (ON DELETE RESTRICT), UNIQUE (CPF), CHECK (preco, estoque, quantidade)
-- Seed data: 5 doces e 3 clientes inseridos automaticamente na criacao do banco
-- Documentacao completa do banco: `docs/public/database/BANCO-DE-DADOS.md`
+**Tabelas:** `doces`, `clientes`, `vendedores`, `vendas`, `migrations_executadas`
+
+**Views:** `vw_clientes_com_desconto` — lista clientes elegiveis a desconto
+
+**Stored Procedure:** `sp_registrar_venda` — registra venda com desconto automatico
+
+**Constraints:** PK (SERIAL), FK (ON DELETE RESTRICT), UNIQUE (CPF), CHECK (preco, estoque, quantidade, forma_pagamento, status_pagamento)
+
+**Migrations:** sistema de migrations sequenciais em `sql/migrations/`. Rodar com `node scripts/migrate.mjs`.
 
 ---
 
@@ -196,42 +228,48 @@ O sistema usa 16 componentes da biblioteca shadcn/ui (badge, button, card, dialo
 Projeto_doceria_bd/
 ├── docker-compose.yml             # Container PostgreSQL 16 (porta 5433)
 ├── sql/
-│   └── init.sql                   # Schema + seed data (executado no 1o start)
-├── .env.example                   # Template de credenciais (commitado)
+│   ├── init.sql                   # Schema + seed data (executado no 1o start)
+│   ├── views.sql                  # Views do banco (referencia)
+│   └── migrations/                # Migrations sequenciais
+│       ├── 001_normalizar_cpf_telefone.sql
+│       ├── 002_criar_views.sql
+│       └── 003_stored_procedure_registrar_venda.sql
+├── scripts/
+│   └── migrate.mjs                # Roda migrations pendentes
+├── .env.example                   # Template de credenciais
 ├── .env                           # Credenciais reais (gitignored)
 └── src/
-    ├── models/                    # Entidades OOP (mantidas da Parte 1)
-    │   ├── Doce.ts                # 6 atributos, 16 metodos
-    │   ├── Cliente.ts             # 8 atributos, 17 metodos
-    │   └── Venda.ts               # 6 atributos, 8 metodos
+    ├── models/                    # Entidades OOP
+    │   ├── Doce.ts
+    │   ├── Cliente.ts
+    │   ├── Venda.ts
+    │   └── Vendedor.ts
     ├── services/
-    │   └── GerenciadorDoceria.ts  # 24 metodos async + 3 helpers (SQL queries)
+    │   └── GerenciadorDoceria.ts  # Operacoes do sistema (SQL + stored procedure)
     ├── lib/
-    │   ├── db.ts                  # Pool de conexao PostgreSQL (pg)
+    │   ├── db.ts                  # Pool de conexao PostgreSQL
     │   ├── dados.ts               # Instancia do gerenciador
-    │   ├── types.ts               # Interfaces TypeScript (Doce, Cliente, Venda)
-    │   └── utils.ts               # Funcao cn() para classes CSS
+    │   ├── types.ts               # Interfaces (Doce, Cliente, Venda, Vendedor)
+    │   └── utils.ts               # Helpers de formatacao (CPF, telefone, preco)
     ├── app/
-    │   ├── api/                   # 7 endpoints REST
-    │   │   ├── doces/route.ts     # GET + POST
-    │   │   ├── doces/[id]/route.ts    # GET + PUT + DELETE
-    │   │   ├── clientes/route.ts      # GET + POST
-    │   │   ├── clientes/[id]/route.ts # GET + PUT + DELETE
-    │   │   ├── vendas/route.ts        # GET + POST
-    │   │   └── relatorio/route.ts     # GET
+    │   ├── api/                   # Endpoints REST
+    │   │   ├── doces/             # GET + POST, [id] GET + PUT + DELETE
+    │   │   ├── clientes/          # GET + POST, [id] GET + PUT + DELETE
+    │   │   ├── vendedores/        # GET + POST, [id] DELETE + PATCH
+    │   │   ├── vendas/            # GET + POST
+    │   │   └── relatorio/         # GET
     │   ├── page.tsx               # Home (Dashboard)
-    │   ├── doces/page.tsx         # Pagina de Doces
-    │   ├── clientes/page.tsx      # Pagina de Clientes
-    │   ├── vendas/page.tsx        # Pagina de Vendas
-    │   ├── relatorios/page.tsx    # Pagina de Relatorios
-    │   ├── layout.tsx             # Layout raiz (fonte Inter)
-    │   └── globals.css            # Tema rosa/pink (hue 350)
+    │   ├── doces/page.tsx
+    │   ├── clientes/page.tsx
+    │   ├── vendedores/page.tsx
+    │   ├── vendas/page.tsx
+    │   └── relatorios/page.tsx
     ├── components/
-    │   ├── AppLayout.tsx          # Wrapper com sidebar + sonner
-    │   ├── AppSidebar.tsx         # Menu lateral de navegacao
-    │   └── ui/                    # 16 componentes shadcn/ui
+    │   ├── AppLayout.tsx
+    │   ├── AppSidebar.tsx         # Menu com 6 itens
+    │   └── ui/                    # Componentes shadcn/ui
     └── hooks/
-        └── use-mobile.ts          # Detecta tela mobile
+        └── use-mobile.ts
 ```
 
 ---
@@ -240,8 +278,10 @@ Projeto_doceria_bd/
 
 | Documento | Caminho | Descricao |
 |-----------|---------|-----------|
-| Estado Atual | `docs/public/ESTADO-ATUAL.md` | Este documento — visao geral atualizada do projeto |
-| Diagrama UML | `docs/public/DIAGRAMA-UML.md` | Diagrama de classes com legenda, contagens e relacionamentos |
-| Banco de Dados | `docs/public/database/BANCO-DE-DADOS.md` | Arquitetura, schema, constraints e configuracao do PostgreSQL |
-| Como Rodar | `docs/public/COMO-RODAR.md` | Guia passo a passo para rodar o projeto localmente |
-| Changelogs | `docs/public/changelog/` | Historico de mudancas com datas |
+| Estado Atual | `docs/public/ESTADO-ATUAL.md` | Este documento |
+| Diagrama UML | `docs/public/DIAGRAMA-UML.md` | Diagrama de classes Mermaid |
+| Diagrama ER | `docs/public/database/DIAGRAMA-ER.md` | Diagrama entidade-relacionamento |
+| Esquema Relacional | `docs/public/database/ESQUEMA-RELACIONAL.md` | Notacao formal das tabelas |
+| Banco de Dados | `docs/public/database/BANCO-DE-DADOS.md` | Arquitetura e configuracao do PostgreSQL |
+| Como Rodar | `docs/public/COMO-RODAR.md` | Guia de setup |
+| Changelogs | `docs/public/changelog/` | Historico de mudancas |

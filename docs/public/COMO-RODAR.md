@@ -66,7 +66,17 @@ docker compose ps
 
 Se voce esta conectando em um banco **remoto** (VPS), troque `localhost` pelo IP do servidor no `DATABASE_URL` do `.env`.
 
-### 4. Rodar o servidor de desenvolvimento
+### 4. Rodar migrations (se o banco ja existia)
+
+Se o banco ja foi criado antes e voce esta atualizando o projeto, rode as migrations pra aplicar as mudancas no schema sem perder dados:
+
+```bash
+node scripts/migrate.mjs
+```
+
+Se o banco e novo (acabou de criar com `docker compose up -d`), o `init.sql` ja cria tudo e **nao precisa rodar migrations**.
+
+### 5. Rodar o servidor de desenvolvimento
 
 ```bash
 npm run dev
@@ -83,7 +93,7 @@ Vai aparecer algo assim no terminal:
  ✓ Ready in 2.5s
 ```
 
-### 5. Abrir no navegador
+### 6. Abrir no navegador
 
 Acesse: **http://localhost:3303**
 
@@ -105,14 +115,15 @@ Ai o acesso fica em: **http://localhost:4000**
 
 ## Navegacao
 
-O sistema tem 5 paginas acessiveis pelo menu lateral:
+O sistema tem 6 paginas acessiveis pelo menu lateral:
 
 | Pagina | URL | O que faz |
 |--------|-----|-----------|
 | Inicio | `/` | Dashboard com resumo geral |
 | Doces | `/doces` | Cadastrar, editar, pesquisar e remover doces |
 | Clientes | `/clientes` | Cadastrar, editar, pesquisar e remover clientes |
-| Vendas | `/vendas` | Registrar vendas e ver historico |
+| Vendedores | `/vendedores` | Cadastrar, editar e remover vendedores |
+| Vendas | `/vendas` | Registrar vendas (com preview de desconto) e ver historico |
 | Relatorios | `/relatorios` | Relatorios de estoque, clientes e vendas |
 
 ---
@@ -138,10 +149,10 @@ curl -X POST http://localhost:3303/api/clientes \
   -H "Content-Type: application/json" \
   -d '{"nome":"Joao","cpf":"123.456.789-00","email":"joao@email.com","telefone":"(83) 99999-0001"}'
 
-# registrar uma venda
+# registrar uma venda (precisa de vendedor e forma de pagamento)
 curl -X POST http://localhost:3303/api/vendas \
   -H "Content-Type: application/json" \
-  -d '{"clienteId":1,"doceId":1,"quantidade":5}'
+  -d '{"clienteId":1,"doceId":1,"vendedorId":1,"quantidade":5,"formaPagamento":"pix","statusPagamento":"pendente"}'
 
 # ver relatorio geral
 curl http://localhost:3303/api/relatorio
@@ -152,6 +163,8 @@ curl http://localhost:3303/api/relatorio
 ## Observacoes Importantes
 
 - **Dados persistentes**: os dados ficam no PostgreSQL. Mesmo que voce pare o `npm run dev` (Ctrl+C) e inicie de novo, todos os dados continuam la. Para resetar os dados, precisa recriar o container: `docker compose down -v && docker compose up -d`.
+
+- **Migrations**: se puxou codigo novo do repositorio e o banco ja existia, rode `node scripts/migrate.mjs` pra aplicar mudancas no schema sem perder dados.
 
 - **Hot reload**: durante o desenvolvimento, quando voce edita um arquivo e salva, o navegador atualiza automaticamente.
 
@@ -176,14 +189,15 @@ Projeto_doceria_bd/
 ├── sql/init.sql        ← schema + dados iniciais
 ├── .env.example        ← template de credenciais
 └── src/
-    ├── models/         ← classes OOP (Doce, Cliente, Venda)
-    ├── services/       ← GerenciadorDoceria (queries SQL)
-    ├── lib/            ← pool de conexao, singleton, types, utils
+    ├── models/         ← classes OOP (Doce, Cliente, Venda, Vendedor)
+    ├── services/       ← GerenciadorDoceria (queries SQL + stored procedure)
+    ├── lib/            ← pool de conexao, singleton, types, utils de formatacao
     ├── app/
     │   ├── api/        ← endpoints REST
     │   ├── page.tsx    ← pagina Home
     │   ├── doces/      ← pagina de Doces
     │   ├── clientes/   ← pagina de Clientes
+    │   ├── vendedores/ ← pagina de Vendedores
     │   ├── vendas/     ← pagina de Vendas
     │   └── relatorios/ ← pagina de Relatorios
     └── components/     ← componentes React reutilizaveis
