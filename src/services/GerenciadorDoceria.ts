@@ -1,5 +1,10 @@
 import pool from "../lib/db";
 
+// remove tudo que nao e digito (usado pra normalizar cpf e telefone)
+function somenteDigitos(valor: string): string {
+  return valor.replace(/\D/g, "");
+}
+
 export class GerenciadorDoceria {
 
   // ==================== DOCES ====================
@@ -152,9 +157,10 @@ export class GerenciadorDoceria {
   }
 
   async buscarClientePorCpf(cpf: string) {
+    const cpfLimpo = somenteDigitos(cpf);
     const resultado = await pool.query(
       "SELECT * FROM clientes WHERE cpf = $1",
-      [cpf]
+      [cpfLimpo]
     );
     if (resultado.rows.length === 0) return null;
     return this.formatarCliente(resultado.rows[0]);
@@ -169,10 +175,14 @@ export class GerenciadorDoceria {
     assisteOnePiece: boolean = false,
     deSousa: boolean = false
   ) {
+    // normaliza cpf e telefone — salva so digitos no banco
+    const cpfLimpo = somenteDigitos(cpf);
+    const telLimpo = somenteDigitos(telefone);
+
     const resultado = await pool.query(
       `INSERT INTO clientes (nome, cpf, email, telefone, torce_flamengo, assiste_one_piece, de_sousa)
        VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [nome, cpf, email, telefone, torceFlamengo, assisteOnePiece, deSousa]
+      [nome, cpfLimpo, email, telLimpo, torceFlamengo, assisteOnePiece, deSousa]
     );
     return this.formatarCliente(resultado.rows[0]);
   }
@@ -202,7 +212,7 @@ export class GerenciadorDoceria {
     }
     if (dados.telefone !== undefined) {
       campos.push(`telefone = $${contador++}`);
-      valores.push(dados.telefone);
+      valores.push(somenteDigitos(dados.telefone));
     }
     if (dados.torceFlamengo !== undefined) {
       campos.push(`torce_flamengo = $${contador++}`);
@@ -396,10 +406,13 @@ export class GerenciadorDoceria {
     telefone: string,
     cpf: string
   ) {
+    const cpfLimpo = somenteDigitos(cpf);
+    const telLimpo = somenteDigitos(telefone);
+
     const resultado = await pool.query(
       `INSERT INTO vendedores (nome, cpf, email, telefone)
        VALUES ($1, $2, $3, $4) RETURNING *`,
-      [nome, cpf, email, telefone]
+      [nome, cpfLimpo, email, telLimpo]
     );
     return this.formatarVendedor(resultado.rows[0]);
   }
@@ -427,11 +440,11 @@ export class GerenciadorDoceria {
     }
     if (dados.telefone !== undefined) {
       campos.push(`telefone = $${contador++}`);
-      valores.push(dados.telefone);
+      valores.push(somenteDigitos(dados.telefone));
     }
     if (dados.cpf !== undefined) {
       campos.push(`cpf = $${contador++}`);
-      valores.push(dados.cpf);
+      valores.push(somenteDigitos(dados.cpf));
     }
 
     if (campos.length === 0) return null;

@@ -25,6 +25,7 @@ import {
 import { Plus, Search, Pencil, Trash2, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { Cliente } from "@/lib/types";
+import { formatarCpf, formatarTelefone, mascaraCpf, mascaraTelefone } from "@/lib/utils";
 
 export default function ClientesPage() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -81,9 +82,9 @@ export default function ClientesPage() {
   function abrirParaEditar(cliente: Cliente) {
     setEditando(cliente);
     setNome(cliente.nome);
-    setCpf(cliente.cpf);
+    setCpf(formatarCpf(cliente.cpf));
     setEmail(cliente.email);
-    setTelefone(cliente.telefone);
+    setTelefone(formatarTelefone(cliente.telefone));
     setTorceFlamengo(cliente.torceFlamengo);
     setAssisteOnePiece(cliente.assisteOnePiece);
     setDeSousa(cliente.deSousa);
@@ -200,8 +201,9 @@ export default function ClientesPage() {
                   <Input
                     id="cpf"
                     value={cpf}
-                    onChange={(e) => setCpf(e.target.value)}
+                    onChange={(e) => setCpf(mascaraCpf(e.target.value))}
                     placeholder="000.000.000-00"
+                    maxLength={14}
                     disabled={!!editando}
                   />
                 </div>
@@ -220,8 +222,9 @@ export default function ClientesPage() {
                   <Input
                     id="telefone"
                     value={telefone}
-                    onChange={(e) => setTelefone(e.target.value)}
-                    placeholder="(83) 99999-9999"
+                    onChange={(e) => setTelefone(mascaraTelefone(e.target.value))}
+                    placeholder="+55 (83) 99999-0001"
+                    maxLength={19}
                   />
                 </div>
 
@@ -331,9 +334,9 @@ export default function ClientesPage() {
                           <Badge variant="secondary" className="ml-2 text-xs">Desconto</Badge>
                         )}
                       </TableCell>
-                      <TableCell className="font-mono">{cliente.cpf}</TableCell>
+                      <TableCell className="font-mono">{formatarCpf(cliente.cpf)}</TableCell>
                       <TableCell>{cliente.email}</TableCell>
-                      <TableCell>{cliente.telefone}</TableCell>
+                      <TableCell>{formatarTelefone(cliente.telefone)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
                           <Button
@@ -385,7 +388,7 @@ export default function ClientesPage() {
                 </div>
                 <div className="flex justify-between rounded-lg border p-3">
                   <span className="text-muted-foreground">CPF</span>
-                  <span className="font-mono">{visualizando.cpf}</span>
+                  <span className="font-mono">{formatarCpf(visualizando.cpf)}</span>
                 </div>
                 <div className="flex justify-between rounded-lg border p-3">
                   <span className="text-muted-foreground">Email</span>
@@ -393,7 +396,7 @@ export default function ClientesPage() {
                 </div>
                 <div className="flex justify-between rounded-lg border p-3">
                   <span className="text-muted-foreground">Telefone</span>
-                  <span>{visualizando.telefone}</span>
+                  <span>{formatarTelefone(visualizando.telefone)}</span>
                 </div>
                 <div className="flex justify-between rounded-lg border p-3">
                   <span className="text-muted-foreground">Flamengo</span>

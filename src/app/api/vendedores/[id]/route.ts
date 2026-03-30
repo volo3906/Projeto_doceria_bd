@@ -3,36 +3,43 @@ import gerenciador from "@/lib/dados";
 
 // DELETE /api/vendedores/[id]
 export async function DELETE(
-  request: Request,
-  { params }: { params: { id: string } }
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  // `params` may be a Promise in Next.js App Router runtime — await it first
-  const resolvedParams: any = await params;
-  const id = parseInt(resolvedParams.id);
+  const { id } = await params;
+  const vendedorId = parseInt(id);
 
-  if (isNaN(id)) {
-    return NextResponse.json({ erro: "ID inválido" }, { status: 400 });
+  if (isNaN(vendedorId)) {
+    return NextResponse.json({ erro: "ID invalido" }, { status: 400 });
   }
 
-  const resultado = await gerenciador.removerVendedor(id);
-
-  if (!resultado) {
-    return NextResponse.json({ erro: "Vendedor não encontrado" }, { status: 404 });
+  try {
+    const resultado = await gerenciador.removerVendedor(vendedorId);
+    if (!resultado) {
+      return NextResponse.json({ erro: "Vendedor nao encontrado" }, { status: 404 });
+    }
+    return NextResponse.json({ mensagem: "Vendedor removido com sucesso" });
+  } catch (erro: any) {
+    if (erro.code === "23503") {
+      return NextResponse.json(
+        { erro: "Nao e possivel remover: este vendedor tem vendas associadas" },
+        { status: 400 }
+      );
+    }
+    return NextResponse.json({ erro: "Erro interno" }, { status: 500 });
   }
-
-  return NextResponse.json({ mensagem: "Vendedor removido com sucesso" });
 }
 
 // PATCH /api/vendedores/[id]
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const resolvedParams: any = await params;
-  const id = parseInt(resolvedParams.id);
+  const { id } = await params;
+  const vendedorId = parseInt(id);
 
-  if (isNaN(id)) {
-    return NextResponse.json({ erro: "ID inválido" }, { status: 400 });
+  if (isNaN(vendedorId)) {
+    return NextResponse.json({ erro: "ID invalido" }, { status: 400 });
   }
 
   const body = await request.json();
@@ -42,43 +49,20 @@ export async function PATCH(
     return NextResponse.json({ erro: "Nenhum campo para atualizar" }, { status: 400 });
   }
 
-  // valida email se fornecido
-  if (email) {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return NextResponse.json({ erro: "Email invalido" }, { status: 400 });
-    }
-  }
-
-  // normaliza cpf se fornecido
-  let cpfFormatado = undefined;
-  if (cpf) {
-    const digits = String(cpf).replace(/\D/g, "");
-    if (digits.length !== 11) {
-      return NextResponse.json({ erro: "CPF invalido: informe 11 digitos" }, { status: 400 });
-    }
-    cpfFormatado = `${digits.slice(0,3)}.${digits.slice(3,6)}.${digits.slice(6,9)}-${digits.slice(9)}`;
-  }
-
   try {
-    const atualizado = await gerenciador.atualizarVendedor(id, {
-      nome,
-      email,
-      telefone,
-      cpf: cpfFormatado,
-    } as any);
+    const atualizado = await gerenciador.atualizarVendedor(vendedorId, {
+      nome, email, telefone, cpf,
+    });
 
     if (!atualizado) {
-      return NextResponse.json({ erro: "Vendedor não encontrado" }, { status: 404 });
+      return NextResponse.json({ erro: "Vendedor nao encontrado" }, { status: 404 });
     }
 
     return NextResponse.json(atualizado);
   } catch (erro: any) {
-    console.error('Erro ao atualizar vendedor:', erro);
-    if (erro && (erro.code === '23505' || erro.detail?.includes('cpf'))) {
-      return NextResponse.json({ erro: 'CPF ja cadastrado' }, { status: 400 });
+    if (erro.code === "23505") {
+      return NextResponse.json({ erro: "CPF ja cadastrado" }, { status: 400 });
     }
-    const devMsg = process.env.NODE_ENV === 'production' ? 'Erro interno' : (erro?.message || String(erro));
-    return NextResponse.json({ erro: devMsg }, { status: 500 });
+    return NextResponse.json({ erro: "Erro interno" }, { status: 500 });
   }
 }
