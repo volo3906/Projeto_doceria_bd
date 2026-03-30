@@ -43,19 +43,6 @@ CREATE TABLE vendas (
     data_venda TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
-CREATE OR REPLACE VIEW vw_clientes_flamengo_onepiece_desousa AS SELECT 
-id, 
-nome, 
-cpf, 
-email, 
-telefone, 
-torce_flamengo, 
-assiste_one_piece, 
-de_sousa, 
-criado_em 
-FROM clientes 
-WHERE torce_flamengo = true OR assiste_one_piece = true OR de_sousa = true OR nome ILIKE '%de Sousa%';
-
 -- dados iniciais para demonstracao
 INSERT INTO doces (nome, categoria, preco, estoque, fabricado_em_mari) VALUES
 ('Brigadeiro', 'Chocolate', 4.00, 50, false),
