@@ -192,7 +192,7 @@ Todos os endpoints estao em `src/app/api/`.
 | Regra | Descricao | Onde e verificada |
 |-------|-----------|-------------------|
 | Validacao de estoque | Venda so e registrada se houver estoque suficiente | Stored procedure `sp_registrar_venda` (FOR UPDATE) |
-| Desconto automatico | 5% por flag ativa (flamengo, one piece, sousa), soma direta ate 15% | Stored procedure consulta view `vw_clientes_com_desconto` |
+| Desconto automatico | 5% por flag ativa (flamengo, one piece, sousa), soma direta, limite maximo de 15% | Stored procedure consulta view `vw_clientes_com_desconto` |
 | Cliente obrigatorio | O cliente precisa existir para registrar venda | Stored procedure |
 | Doce obrigatorio | O doce precisa existir para registrar venda | Stored procedure |
 | Vendedor obrigatorio | O vendedor precisa existir para registrar venda | Stored procedure |
@@ -214,7 +214,9 @@ Todos os endpoints estao em `src/app/api/`.
 
 **Views:** `vw_clientes_com_desconto` — lista clientes elegiveis a desconto
 
-**Stored Procedure:** `sp_registrar_venda` — registra venda com desconto automatico
+**Stored Procedure:** `sp_registrar_venda` — registra venda com desconto automatico (limite 15%)
+
+**Indices:** `idx_vendas_cliente_id`, `idx_vendas_doce_id`, `idx_vendas_vendedor_id` (B-tree nas FKs de vendas)
 
 **Constraints:** PK (SERIAL), FK (ON DELETE RESTRICT), UNIQUE (CPF), CHECK (preco, estoque, quantidade, forma_pagamento, status_pagamento)
 

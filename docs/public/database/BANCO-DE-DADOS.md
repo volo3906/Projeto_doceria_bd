@@ -166,11 +166,12 @@ A procedure faz tudo atomicamente:
 2. Busca o doce com `FOR UPDATE` (trava a linha)
 3. Verifica se tem estoque suficiente
 4. Consulta a view `vw_clientes_com_desconto` pra verificar elegibilidade
-5. Calcula desconto: 5% por flag ativa (flamengo, one piece, sousa), soma direta ate 15%
-6. Calcula valor total com desconto aplicado
-7. Desconta o estoque
-8. Insere a venda
-9. Retorna a venda criada + percentual de desconto
+5. Calcula desconto: 5% por flag ativa (flamengo, one piece, sousa), soma direta
+6. Aplica limite maximo de 15% (preparado pra escalar com mais criterios no futuro)
+7. Calcula valor total com desconto aplicado
+8. Desconta o estoque
+9. Insere a venda
+10. Retorna a venda criada + percentual de desconto
 
 O `FOR UPDATE` garante que duas vendas simultaneas do mesmo doce nao vendam mais do que tem em estoque.
 
@@ -206,6 +207,33 @@ node scripts/migrate.mjs
 - `001_normalizar_cpf_telefone.sql` — converte CPF/telefone pra somente digitos
 - `002_criar_views.sql` — cria view de clientes com desconto
 - `003_stored_procedure_registrar_venda.sql` — cria procedure de venda com desconto
+- `004_limite_desconto_15_porcento.sql` — adiciona limite maximo de 15% no desconto
+- `005_criar_indices.sql` — cria indices B-tree nas FKs de vendas
+
+---
+
+## Indices
+
+O PostgreSQL cria indices automaticamente pra PK e UNIQUE, mas **nao pra FK**. Sem indice nas FKs, consultas por cliente/doce/vendedor na tabela de vendas fazem sequential scan (leem tudo).
+
+### Indices criados:
+
+| Indice | Tabela | Coluna | Motivo |
+|--------|--------|--------|--------|
+| `idx_vendas_cliente_id` | vendas | cliente_id | Buscar vendas de um cliente + verificacao FK no DELETE |
+| `idx_vendas_doce_id` | vendas | doce_id | Stored procedure FOR UPDATE + verificacao FK |
+| `idx_vendas_vendedor_id` | vendas | vendedor_id | Relatorio por vendedor + verificacao FK |
+
+### Indices automaticos (PK e UNIQUE):
+
+| Indice | Tabela | Coluna |
+|--------|--------|--------|
+| `doces_pkey` | doces | id |
+| `clientes_pkey` | clientes | id |
+| `clientes_cpf_key` | clientes | cpf |
+| `vendedores_pkey` | vendedores | id |
+| `vendedores_cpf_unique` | vendedores | cpf |
+| `vendas_pkey` | vendas | id |
 
 ---
 

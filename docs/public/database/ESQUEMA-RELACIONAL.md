@@ -82,7 +82,14 @@ vw_clientes_com_desconto — clientes com alguma flag de desconto ativa
 ### Stored Procedure
 ```sql
 sp_registrar_venda(cliente_id, doce_id, vendedor_id, quantidade, forma_pagamento, status_pagamento)
-— registra venda com desconto automatico (5% por flag, ate 15%)
+— registra venda com desconto automatico (5% por flag, limite maximo 15%)
+```
+
+### Indices (B-tree nas FKs)
+```sql
+idx_vendas_cliente_id ON vendas(cliente_id)
+idx_vendas_doce_id ON vendas(doce_id)
+idx_vendas_vendedor_id ON vendas(vendedor_id)
 ```
 
 ### Tabela de controle

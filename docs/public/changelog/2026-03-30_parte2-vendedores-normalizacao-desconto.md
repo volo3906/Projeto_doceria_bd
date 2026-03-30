@@ -62,6 +62,7 @@ formatacao em pt-BR, sistema de migrations e desconto automatico via stored proc
 - Funcao `sp_registrar_venda` no PostgreSQL
 - Calcula desconto automatico: 5% por flag (flamengo, one piece, sousa)
 - Soma direta: 1 flag = 5%, 2 flags = 10%, 3 flags = 15%
+- Limite maximo de 15% de desconto (preparado pra escalar com mais criterios no futuro)
 - Consulta a view `vw_clientes_com_desconto` pra verificar elegibilidade
 - Toda a logica de venda (validacao, estoque, desconto, insert) atomica no banco
 - GerenciadorDoceria agora chama a procedure em vez de fazer logica manual
@@ -70,7 +71,14 @@ formatacao em pt-BR, sistema de migrations e desconto automatico via stored proc
 - Resumo da venda aparece em tempo real no formulario
 - Mostra valor bruto, percentual de desconto e valor final
 - Explica o motivo do desconto ("tem desconto por: Flamengo One Piece")
+- Aviso em amarelo quando o desconto atinge o limite maximo de 15%
 - Toast apos venda informa o percentual aplicado
+
+### Indices nas FKs de vendas
+- `idx_vendas_cliente_id` — acelera busca de vendas por cliente e verificacao FK no DELETE
+- `idx_vendas_doce_id` — acelera stored procedure (FOR UPDATE) e verificacao FK
+- `idx_vendas_vendedor_id` — acelera relatorio por vendedor e verificacao FK
+- PostgreSQL nao cria indice automatico pra FK (so pra PK e UNIQUE)
 
 ### Views (Parte 2)
 - View `vw_clientes_com_desconto` — lista clientes elegiveis a desconto
@@ -96,6 +104,8 @@ formatacao em pt-BR, sistema de migrations e desconto automatico via stored proc
 | `sql/migrations/001_normalizar_cpf_telefone.sql` | Migra dados existentes pra digitos |
 | `sql/migrations/002_criar_views.sql` | Cria views no banco existente |
 | `sql/migrations/003_stored_procedure_registrar_venda.sql` | Procedure de venda com desconto |
+| `sql/migrations/004_limite_desconto_15_porcento.sql` | Limite maximo de 15% no desconto |
+| `sql/migrations/005_criar_indices.sql` | Indices B-tree nas FKs de vendas |
 | `scripts/migrate.mjs` | Script que roda migrations pendentes |
 | `docs/public/database/DIAGRAMA-ER.md` | Diagrama ER do projeto |
 | `docs/public/database/ESQUEMA-RELACIONAL.md` | Esquema relacional formal |
