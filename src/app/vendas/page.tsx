@@ -137,12 +137,14 @@ export default function VendasPage() {
     return d ? d.nome : `Doce #${id}`;
   }
 
-  function nomeVendedor(id: number): string {
+  function nomeVendedor(id: number | null): string {
+    if (!id) return "—";
     const v = vendedores.find((v) => v.id === id);
     return v ? v.nome : `Vendedor #${id}`;
   }
 
-  function getNomeFormaPagamento(forma: string): string {
+  function getNomeFormaPagamento(forma: string | null): string {
+    if (!forma) return "—";
     const formas: Record<string, string> = {
       cartao: "Cartão",
       boleto: "Boleto",
