@@ -168,6 +168,31 @@ export default function VendasPage() {
     return statuses[status || ""] || "—";
   }
 
+  // calcula desconto e resumo da venda em tempo real
+  function calcularResumoVenda() {
+    if (!clienteId || !doceId || !quantidade) return null;
+
+    const cliente = clientes.find((c) => c.id === parseInt(clienteId));
+    const doce = doces.find((d) => d.id === parseInt(doceId));
+    const qtd = parseInt(quantidade);
+
+    if (!cliente || !doce || qtd <= 0) return null;
+
+    // calcula desconto: 5% por flag
+    let desconto = 0;
+    if (cliente.torceFlamengo) desconto += 5;
+    if (cliente.assisteOnePiece) desconto += 5;
+    if (cliente.deSousa) desconto += 5;
+
+    const valorBruto = doce.preco * qtd;
+    const valorDesconto = valorBruto * desconto / 100;
+    const valorFinal = valorBruto - valorDesconto;
+
+    return { cliente, doce, qtd, desconto, valorBruto, valorDesconto, valorFinal };
+  }
+
+  const resumo = calcularResumoVenda();
+
   return (
     <AppLayout>
       <div className="space-y-6">
@@ -295,6 +320,37 @@ export default function VendasPage() {
                     </Select>
                   </div>
                 )}
+                {/* resumo da venda em tempo real */}
+                {resumo && (
+                  <div className="rounded-lg border p-3 space-y-2 bg-muted/30">
+                    <p className="text-sm font-medium">Resumo da venda</p>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">
+                        {resumo.doce.nome} x{resumo.qtd}
+                      </span>
+                      <span>{formatarPreco(resumo.valorBruto)}</span>
+                    </div>
+                    {resumo.desconto > 0 && (
+                      <div className="flex justify-between text-sm text-green-600">
+                        <span>Desconto ({resumo.desconto}%)</span>
+                        <span>- {formatarPreco(resumo.valorDesconto)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-bold border-t pt-2">
+                      <span>Total</span>
+                      <span>{formatarPreco(resumo.valorFinal)}</span>
+                    </div>
+                    {resumo.desconto > 0 && (
+                      <p className="text-xs text-green-600">
+                        {resumo.cliente.nome} tem desconto por:
+                        {resumo.cliente.torceFlamengo ? " Flamengo" : ""}
+                        {resumo.cliente.assisteOnePiece ? " One Piece" : ""}
+                        {resumo.cliente.deSousa ? " Sousa" : ""}
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 <Button onClick={realizarVenda} className="w-full">
                   Confirmar Venda
                 </Button>
