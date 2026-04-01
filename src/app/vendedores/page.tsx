@@ -126,8 +126,9 @@ export default function VendedoresPage() {
         method: "DELETE",
       });
 
+      const dados = await res.json();
       if (!res.ok) {
-        toast.error("Erro ao remover vendedor");
+        toast.error(dados.erro || "Erro ao remover vendedor");
         return;
       }
 
