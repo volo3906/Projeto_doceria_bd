@@ -9,19 +9,25 @@ export async function GET() {
 // POST /api/vendas
 export async function POST(request: Request) {
   const body = await request.json();
-  const { clienteId, doceId, vendedorId, quantidade, formaPagamento, statusPagamento } = body;
+  const { clienteId, vendedorId, formaPagamento, statusPagamento, itens } = body;
 
-  if (!clienteId || !doceId || !vendedorId || !quantidade || !formaPagamento) {
+  if (!clienteId || !vendedorId || !formaPagamento || !itens || itens.length === 0) {
     return NextResponse.json({ erro: "Campos obrigatorios faltando" }, { status: 400 });
+  }
+
+  // valida que cada item tem doceId e quantidade
+  for (const item of itens) {
+    if (!item.doceId || !item.quantidade || item.quantidade <= 0) {
+      return NextResponse.json({ erro: "Cada item precisa de doce e quantidade" }, { status: 400 });
+    }
   }
 
   const resultado = await gerenciador.registrarVenda(
     Number(clienteId),
-    Number(doceId),
     Number(vendedorId),
-    Number(quantidade),
     formaPagamento,
-    statusPagamento
+    statusPagamento,
+    itens.map((item: any) => ({ doceId: Number(item.doceId), quantidade: Number(item.quantidade) }))
   );
 
   // se retornou string, eh uma mensagem de erro
