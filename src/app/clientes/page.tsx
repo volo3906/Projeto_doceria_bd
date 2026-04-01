@@ -23,6 +23,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Plus, Search, Pencil, Trash2, Eye } from "lucide-react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { Cliente } from "@/lib/types";
 import { formatarCpf, formatarTelefone, mascaraCpf, mascaraTelefone } from "@/lib/utils";
@@ -339,13 +340,11 @@ export default function ClientesPage() {
                       <TableCell>{formatarTelefone(cliente.telefone)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setVisualizando(cliente)}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
+                          <Link href={`/clientes/${cliente.id}`}>
+                            <Button variant="ghost" size="icon">
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </Link>
                           <Button
                             variant="ghost"
                             size="icon"
