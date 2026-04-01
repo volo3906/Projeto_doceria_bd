@@ -263,7 +263,7 @@ export default function VendasPage() {
                   <Label>Cliente</Label>
                   <Select value={clienteId} onValueChange={(v) => setClienteId(v ?? "")}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Selecione o cliente" />
+                      {clienteId ? clientes.find((c) => c.id === parseInt(clienteId))?.nome || "Selecione o cliente" : "Selecione o cliente"}
                     </SelectTrigger>
                     <SelectContent>
                       {clientes.map((c) => (
@@ -278,7 +278,7 @@ export default function VendasPage() {
                   <Label>Vendedor</Label>
                   <Select value={vendedorId} onValueChange={(v) => setVendedorId(v ?? "")}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Selecione o vendedor" />
+                      {vendedorId ? vendedores.find((v) => v.id === parseInt(vendedorId))?.nome || "Selecione o vendedor" : "Selecione o vendedor"}
                     </SelectTrigger>
                     <SelectContent>
                       {vendedores.map((v) => (
@@ -296,7 +296,7 @@ export default function VendasPage() {
                   <div className="flex gap-2">
                     <Select value={doceIdParaAdicionar} onValueChange={(v) => setDoceIdParaAdicionar(v ?? "")}>
                       <SelectTrigger className="flex-1">
-                        <SelectValue placeholder="Selecione o doce" />
+                        {doceIdParaAdicionar ? doces.find((d) => d.id === parseInt(doceIdParaAdicionar))?.nome || "Selecione o doce" : "Selecione o doce"}
                       </SelectTrigger>
                       <SelectContent className="w-[var(--radix-select-trigger-width)]">
                         {doces.map((d) => (
@@ -392,7 +392,6 @@ export default function VendasPage() {
                       <SelectContent>
                         <SelectItem value="confirmado">Confirmado</SelectItem>
                         <SelectItem value="pendente">Pendente</SelectItem>
-                        <SelectItem value="recusado">Recusado</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
