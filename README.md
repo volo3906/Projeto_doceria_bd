@@ -1,6 +1,6 @@
 # Doceria Gourmet
 
-Sistema web para gerenciamento de uma doceria. Permite cadastrar doces, clientes e vendedores, registrar vendas com desconto automatico, e gerar relatorios.
+Sistema web para gerenciamento de uma doceria com areas separadas para **cliente** e **administrador**. Clientes navegam o catalogo e compram doces com desconto automatico. Administradores gerenciam doces, clientes, vendedores, vendas e relatorios.
 
 **Stack:** Next.js 16 + React 19 + TypeScript + Tailwind CSS 4 + shadcn/ui + PostgreSQL 16
 
@@ -24,23 +24,36 @@ npm run dev
 
 ## Paginas
 
+Na tela inicial (`/`) o usuario escolhe entre **Cliente** e **Administrador**.
+
+**Area do Cliente:**
+
 | Pagina | Rota | Funcionalidade |
 |--------|------|----------------|
-| Inicio | `/` | Dashboard com cards de resumo + valor em estoque |
-| Doces | `/doces` | CRUD completo com pesquisa, modal e detalhes |
-| Clientes | `/clientes` | CRUD com mascaras de CPF/telefone e badges de desconto |
-| Vendedores | `/vendedores` | CRUD de vendedores com mascaras de CPF/telefone |
-| Vendas | `/vendas` | Registrar vendas com preview de desconto em tempo real |
-| Relatorios | `/relatorios` | 3 secoes: Estoque, Clientes e Vendas |
+| Catalogo | `/cliente` | Ver doces + comprar direto com popup |
+| Comprar | `/cliente/comprar` | Carrinho com multiplos doces |
+| Meus Dados | `/cliente/meus-dados` | Consultar dados por CPF |
+| Minhas Compras | `/cliente/compras` | Historico de compras |
+
+**Area do Admin:**
+
+| Pagina | Rota | Funcionalidade |
+|--------|------|----------------|
+| Dashboard | `/admin` | Cards de resumo + valor em estoque |
+| Doces | `/admin/doces` | CRUD com filtros (categoria, preco, estoque baixo) |
+| Clientes | `/admin/clientes` | CRUD + detalhe com historico |
+| Vendedores | `/admin/vendedores` | CRUD completo |
+| Vendas | `/admin/vendas` | Carrinho com multiplos doces + desconto |
+| Relatorios | `/admin/relatorios` | Estoque, Clientes, Vendas e Vendas por Vendedor |
 
 ---
 
 ## Banco de Dados
 
-- **4 tabelas:** doces, clientes, vendedores, vendas
+- **5 tabelas:** doces, clientes, vendedores, vendas, itens_venda
 - **1 view:** `vw_clientes_com_desconto`
-- **1 stored procedure:** `sp_registrar_venda` (desconto automatico, limite 15%)
-- **3 indices:** FKs de vendas (cliente_id, doce_id, vendedor_id)
+- **1 stored procedure:** `sp_registrar_venda` (multiplos itens, desconto, bloqueia recusado)
+- **5 indices:** FKs de vendas e itens_venda
 - **Constraints:** PK, FK (RESTRICT), UNIQUE (CPF), CHECK (preco, estoque, quantidade, pagamento)
 - **Migrations:** `sql/migrations/` + `node scripts/migrate.mjs`
 

@@ -17,10 +17,13 @@ Clientes (_id_, nome, cpf, email, telefone, torce_flamengo, assiste_one_piece, d
 
 Vendedores (_id_, nome, cpf, email, telefone, criado_em)
 
-Vendas (_id_, cliente_id, doce_id, vendedor_id, quantidade, valor_total, forma_pagamento, status_pagamento, data_venda)
+Vendas (_id_, cliente_id, vendedor_id, valor_total, forma_pagamento, status_pagamento, data_venda)
     cliente_id referencia Clientes(id)
-    doce_id referencia Doces(id)
     vendedor_id referencia Vendedores(id)
+
+ItensVenda (_id_, venda_id, doce_id, quantidade, subtotal)
+    venda_id referencia Vendas(id)
+    doce_id referencia Doces(id)
 ```
 
 ---

@@ -144,7 +144,8 @@ Todos os endpoints estao em `src/app/api/`.
 | Metodo | Rota | O que faz |
 |--------|------|-----------|
 | GET | `/api/vendas` | Lista todas as vendas |
-| POST | `/api/vendas` | Registra nova venda (via stored procedure com desconto) |
+| GET | `/api/vendas/[id]` | Retorna uma venda com seus itens |
+| POST | `/api/vendas` | Registra nova venda com multiplos itens (via stored procedure) |
 
 ### Relatorio (`/api/relatorio`)
 
@@ -158,14 +159,34 @@ Todos os endpoints estao em `src/app/api/`.
 
 ### Paginas
 
+O sistema possui duas areas separadas: **Cliente** e **Administrador**.
+Na tela inicial (`/`) o usuario escolhe como quer acessar. Nao ha login — a separacao e apenas visual.
+
+**Tela inicial:**
+
 | Pagina | Rota | Funcionalidade |
 |--------|------|----------------|
-| Home | `/` | Dashboard com cards de resumo + valor em estoque |
-| Doces | `/doces` | CRUD completo com pesquisa, modal, detalhes. Precos em R$ com virgula |
-| Clientes | `/clientes` | CRUD completo com mascaras de CPF/telefone, badges de desconto |
-| Vendedores | `/vendedores` | CRUD completo com mascaras de CPF/telefone |
-| Vendas | `/vendas` | Registrar vendas com resumo em tempo real (preview de desconto) |
-| Relatorios | `/relatorios` | 3 secoes: Estoque, Clientes e Vendas com cards + tabelas |
+| Escolha de perfil | `/` | Dois cards: "Sou Cliente" e "Sou Administrador" |
+
+**Area do Cliente (`/cliente/*`):**
+
+| Pagina | Rota | Funcionalidade |
+|--------|------|----------------|
+| Catalogo | `/cliente` | Ver doces disponiveis com filtros + botao "Comprar" em cada card |
+| Comprar | `/cliente/comprar` | Carrinho com multiplos doces, identificacao por CPF, cadastro rapido |
+| Meus Dados | `/cliente/meus-dados` | Consultar dados cadastrais por CPF, cadastrar se nao existir |
+| Minhas Compras | `/cliente/compras` | Historico de compras por CPF |
+
+**Area do Admin (`/admin/*`):**
+
+| Pagina | Rota | Funcionalidade |
+|--------|------|----------------|
+| Dashboard | `/admin` | Cards de resumo + valor em estoque |
+| Doces | `/admin/doces` | CRUD com filtros (categoria, preco, estoque baixo) |
+| Clientes | `/admin/clientes` | CRUD com mascaras CPF/telefone + detalhe com historico |
+| Vendedores | `/admin/vendedores` | CRUD com mascaras CPF/telefone |
+| Vendas | `/admin/vendas` | Registrar vendas com carrinho de multiplos doces + desconto |
+| Relatorios | `/admin/relatorios` | Estoque, Clientes, Vendas e Vendas por Vendedor |
 
 ### Indicadores visuais
 
@@ -183,6 +204,7 @@ Todos os endpoints estao em `src/app/api/`.
 - Todas as paginas mostram toast de erro quando a API falha
 - DELETE com FK RESTRICT: "Nao e possivel remover: tem vendas associadas"
 - CPF duplicado: "CPF ja cadastrado"
+- Pagamento recusado: "Pagamento recusado. A compra nao pode ser efetivada."
 - Falha de conexao: "Erro ao conectar com o servidor"
 
 ---
@@ -197,7 +219,10 @@ Todos os endpoints estao em `src/app/api/`.
 | Doce obrigatorio | O doce precisa existir para registrar venda | Stored procedure |
 | Vendedor obrigatorio | O vendedor precisa existir para registrar venda | Stored procedure |
 | Forma de pagamento | Obrigatoria em toda venda (cartao, boleto, pix, berries, dinheiro) | CHECK constraint no banco |
-| Status de pagamento | Obrigatorio para cartao/boleto/pix/berries | Frontend + backend |
+| Status de pagamento | Obrigatorio para cartao/boleto/pix/berries (confirmado ou pendente) | Frontend + backend |
+| Pagamento recusado | Venda nao e registrada se status for recusado | Stored procedure bloqueia |
+| Multiplos itens | Uma venda pode conter varios doces diferentes | Tabela itens_venda |
+| Identificacao na compra | Cliente se identifica por CPF na hora de comprar, ou cadastra na hora | Frontend area cliente |
 | CPF unico | Nao pode cadastrar dois clientes/vendedores com mesmo CPF | UNIQUE constraint (erro 23505) |
 | CPF imutavel | CPF nao pode ser alterado apos cadastro | Frontend (campo desabilitado) |
 | CPF/telefone normalizado | Armazenados somente como digitos | Backend normaliza antes de salvar |
@@ -210,13 +235,13 @@ Todos os endpoints estao em `src/app/api/`.
 
 **Banco:** PostgreSQL 16 (Docker, porta 5433).
 
-**Tabelas:** `doces`, `clientes`, `vendedores`, `vendas`, `migrations_executadas`
+**Tabelas:** `doces`, `clientes`, `vendedores`, `vendas`, `itens_venda`, `migrations_executadas`
 
 **Views:** `vw_clientes_com_desconto` — lista clientes elegiveis a desconto
 
-**Stored Procedure:** `sp_registrar_venda` — registra venda com desconto automatico (limite 15%)
+**Stored Procedure:** `sp_registrar_venda` — registra venda com multiplos itens, desconto automatico (limite 15%), bloqueia pagamento recusado
 
-**Indices:** `idx_vendas_cliente_id`, `idx_vendas_doce_id`, `idx_vendas_vendedor_id` (B-tree nas FKs de vendas)
+**Indices:** `idx_vendas_cliente_id`, `idx_vendas_doce_id`, `idx_vendas_vendedor_id`, `idx_itens_venda_venda_id`, `idx_itens_venda_doce_id` (B-tree nas FKs)
 
 **Constraints:** PK (SERIAL), FK (ON DELETE RESTRICT), UNIQUE (CPF), CHECK (preco, estoque, quantidade, forma_pagamento, status_pagamento)
 
@@ -232,10 +257,10 @@ Projeto_doceria_bd/
 ├── sql/
 │   ├── init.sql                   # Schema + seed data (executado no 1o start)
 │   ├── views.sql                  # Views do banco (referencia)
-│   └── migrations/                # Migrations sequenciais
+│   └── migrations/                # Migrations sequenciais (001-007)
 │       ├── 001_normalizar_cpf_telefone.sql
-│       ├── 002_criar_views.sql
-│       └── 003_stored_procedure_registrar_venda.sql
+│       ├── ...
+│       └── 007_bloquear_pagamento_recusado.sql
 ├── scripts/
 │   └── migrate.mjs                # Roda migrations pendentes
 ├── .env.example                   # Template de credenciais
@@ -258,17 +283,24 @@ Projeto_doceria_bd/
     │   │   ├── doces/             # GET + POST, [id] GET + PUT + DELETE
     │   │   ├── clientes/          # GET + POST, [id] GET + PUT + DELETE
     │   │   ├── vendedores/        # GET + POST, [id] DELETE + PATCH
-    │   │   ├── vendas/            # GET + POST
+    │   │   ├── vendas/            # GET + POST, [id] GET (com itens)
     │   │   └── relatorio/         # GET
-    │   ├── page.tsx               # Home (Dashboard)
-    │   ├── doces/page.tsx
-    │   ├── clientes/page.tsx
-    │   ├── vendedores/page.tsx
-    │   ├── vendas/page.tsx
-    │   └── relatorios/page.tsx
+    │   ├── page.tsx               # Tela inicial (escolha Cliente/Admin)
+    │   ├── admin/                 # Area administrativa
+    │   │   ├── page.tsx           # Dashboard
+    │   │   ├── doces/             # CRUD doces com filtros
+    │   │   ├── clientes/          # CRUD clientes + detalhe [id]
+    │   │   ├── vendedores/        # CRUD vendedores
+    │   │   ├── vendas/            # Registrar vendas (carrinho)
+    │   │   └── relatorios/        # Relatorios + vendas por vendedor
+    │   └── cliente/               # Area do cliente
+    │       ├── page.tsx           # Catalogo com compra rapida
+    │       ├── comprar/           # Carrinho com identificacao
+    │       ├── meus-dados/        # Consulta dados por CPF
+    │       └── compras/           # Historico de compras
     ├── components/
-    │   ├── AppLayout.tsx
-    │   ├── AppSidebar.tsx         # Menu com 6 itens
+    │   ├── AppLayout.tsx          # Wrapper com botao trocar perfil
+    │   ├── AppSidebar.tsx         # Sidebar dinamica (admin/cliente)
     │   └── ui/                    # Componentes shadcn/ui
     └── hooks/
         └── use-mobile.ts

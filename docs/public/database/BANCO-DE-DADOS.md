@@ -93,17 +93,32 @@ O schema eh definido em `sql/init.sql` e executado automaticamente quando o cont
 | status_pagamento | VARCHAR(20) | CHECK IN (confirmado, pendente, recusado) |
 | data_venda | TIMESTAMP | NOT NULL, DEFAULT NOW() |
 
+### Tabela `itens_venda`
+
+| Coluna | Tipo | Constraints |
+|--------|------|-------------|
+| id | SERIAL | PRIMARY KEY |
+| venda_id | INTEGER | NOT NULL, FK → vendas(id) ON DELETE CASCADE |
+| doce_id | INTEGER | NOT NULL, FK → doces(id) ON DELETE RESTRICT |
+| quantidade | INTEGER | NOT NULL, CHECK > 0 |
+| subtotal | NUMERIC(10,2) | NOT NULL, CHECK >= 0 |
+
+Cada linha representa um doce dentro de uma venda. Uma venda pode ter N itens.
+
 ### Diagrama de Relacionamentos
 
 ```
-doces (1) ←──── (N) vendas (N) ────→ (1) clientes
-                       |
-                       N
-                       |
-               vendedores (1)
+                    itens_venda
+                   /           \
+doces (1) ←── (N) itens  vendas (N) ────→ (1) clientes
+                           |
+                           N
+                           |
+                   vendedores (1)
 ```
 
-- Um doce pode estar em varias vendas
+- Uma venda pode ter varios itens (cada item e um doce diferente)
+- Um doce pode aparecer em varios itens de vendas diferentes
 - Um cliente pode ter varias vendas
 - Um vendedor pode efetivar varias vendas
 - Cada venda referencia exatamente um doce, um cliente e um vendedor
@@ -209,6 +224,8 @@ node scripts/migrate.mjs
 - `003_stored_procedure_registrar_venda.sql` — cria procedure de venda com desconto
 - `004_limite_desconto_15_porcento.sql` — adiciona limite maximo de 15% no desconto
 - `005_criar_indices.sql` — cria indices B-tree nas FKs de vendas
+- `006_criar_itens_vendas.sql` — separa itens da venda em tabela propria (1 venda = N doces)
+- `007_bloquear_pagamento_recusado.sql` — procedure rejeita venda com status recusado
 
 ---
 
@@ -223,6 +240,8 @@ O PostgreSQL cria indices automaticamente pra PK e UNIQUE, mas **nao pra FK**. S
 | `idx_vendas_cliente_id` | vendas | cliente_id | Buscar vendas de um cliente + verificacao FK no DELETE |
 | `idx_vendas_doce_id` | vendas | doce_id | Stored procedure FOR UPDATE + verificacao FK |
 | `idx_vendas_vendedor_id` | vendas | vendedor_id | Relatorio por vendedor + verificacao FK |
+| `idx_itens_venda_venda_id` | itens_venda | venda_id | Buscar itens de uma venda |
+| `idx_itens_venda_doce_id` | itens_venda | doce_id | Verificacao FK ao deletar doce |
 
 ### Indices automaticos (PK e UNIQUE):
 

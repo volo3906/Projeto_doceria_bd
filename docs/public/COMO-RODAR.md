@@ -115,16 +115,27 @@ Ai o acesso fica em: **http://localhost:4000**
 
 ## Navegacao
 
-O sistema tem 6 paginas acessiveis pelo menu lateral:
+Na tela inicial (`/`) voce escolhe entre **Cliente** e **Administrador**.
+
+**Area do Cliente:**
 
 | Pagina | URL | O que faz |
 |--------|-----|-----------|
-| Inicio | `/` | Dashboard com resumo geral |
-| Doces | `/doces` | Cadastrar, editar, pesquisar e remover doces |
-| Clientes | `/clientes` | Cadastrar, editar, pesquisar e remover clientes |
-| Vendedores | `/vendedores` | Cadastrar, editar e remover vendedores |
-| Vendas | `/vendas` | Registrar vendas (com preview de desconto) e ver historico |
-| Relatorios | `/relatorios` | Relatorios de estoque, clientes e vendas |
+| Catalogo | `/cliente` | Ver doces e comprar direto |
+| Comprar | `/cliente/comprar` | Carrinho com multiplos doces |
+| Meus Dados | `/cliente/meus-dados` | Consultar dados por CPF |
+| Minhas Compras | `/cliente/compras` | Historico de compras |
+
+**Area do Admin:**
+
+| Pagina | URL | O que faz |
+|--------|-----|-----------|
+| Dashboard | `/admin` | Resumo geral |
+| Doces | `/admin/doces` | CRUD com filtros |
+| Clientes | `/admin/clientes` | CRUD + detalhe com historico |
+| Vendedores | `/admin/vendedores` | CRUD completo |
+| Vendas | `/admin/vendas` | Registrar vendas com carrinho |
+| Relatorios | `/admin/relatorios` | Estoque, Clientes, Vendas, Vendas por Vendedor |
 
 ---
 
