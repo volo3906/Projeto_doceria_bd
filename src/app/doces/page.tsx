@@ -22,7 +22,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Search, Pencil, Trash2, Eye } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Plus, Search, Pencil, Trash2, Eye, Filter } from "lucide-react";
 import { toast } from "sonner";
 import { Doce } from "@/lib/types";
 import { formatarPreco, parsearPreco } from "@/lib/utils";
@@ -33,6 +40,13 @@ export default function DocesPage() {
   const [dialogAberto, setDialogAberto] = useState(false);
   const [editando, setEditando] = useState<Doce | null>(null);
   const [visualizando, setVisualizando] = useState<Doce | null>(null);
+
+  // filtros
+  const [filtroCategoria, setFiltroCategoria] = useState("");
+  const [filtroPrecoMin, setFiltroPrecoMin] = useState("");
+  const [filtroPrecoMax, setFiltroPrecoMax] = useState("");
+  const [filtroEstoqueBaixo, setFiltroEstoqueBaixo] = useState(false);
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false);
 
   // campos do formulario
   const [nome, setNome] = useState("");
@@ -75,6 +89,41 @@ export default function DocesPage() {
     } catch {
       toast.error("Erro ao conectar com o servidor");
     }
+  }
+
+  // categorias unicas pra popular o dropdown de filtro
+  const categorias = [...new Set(doces.map((d) => d.categoria))].sort();
+
+  // filtra os doces com base nos filtros ativos
+  function docesFiltrados(): Doce[] {
+    let resultado = doces;
+
+    if (filtroCategoria) {
+      resultado = resultado.filter((d) => d.categoria === filtroCategoria);
+    }
+    if (filtroPrecoMin) {
+      const min = parseFloat(filtroPrecoMin.replace(",", "."));
+      if (!isNaN(min)) resultado = resultado.filter((d) => d.preco >= min);
+    }
+    if (filtroPrecoMax) {
+      const max = parseFloat(filtroPrecoMax.replace(",", "."));
+      if (!isNaN(max)) resultado = resultado.filter((d) => d.preco <= max);
+    }
+    if (filtroEstoqueBaixo) {
+      resultado = resultado.filter((d) => d.estoque < 5);
+    }
+
+    return resultado;
+  }
+
+  const filtrados = docesFiltrados();
+  const temFiltroAtivo = filtroCategoria || filtroPrecoMin || filtroPrecoMax || filtroEstoqueBaixo;
+
+  function limparFiltros() {
+    setFiltroCategoria("");
+    setFiltroPrecoMin("");
+    setFiltroPrecoMax("");
+    setFiltroEstoqueBaixo(false);
   }
 
   function abrirParaEditar(doce: Doce) {
@@ -254,19 +303,82 @@ export default function DocesPage() {
                   Limpar
                 </Button>
               )}
+              <Button
+                variant={filtrosAbertos ? "default" : "outline"}
+                onClick={() => setFiltrosAbertos(!filtrosAbertos)}
+              >
+                <Filter className="mr-2 h-4 w-4" />
+                Filtros
+                {temFiltroAtivo && (
+                  <Badge variant="secondary" className="ml-2">{
+                    [filtroCategoria, filtroPrecoMin, filtroPrecoMax, filtroEstoqueBaixo].filter(Boolean).length
+                  }</Badge>
+                )}
+              </Button>
             </div>
+
+            {/* filtros expandiveis */}
+            {filtrosAbertos && (
+              <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 pt-4 border-t">
+                <div>
+                  <Label className="text-xs text-muted-foreground">Categoria</Label>
+                  <Select value={filtroCategoria} onValueChange={(v) => setFiltroCategoria(v === "todas" ? "" : (v ?? ""))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todas" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todas">Todas</SelectItem>
+                      {categorias.map((cat) => (
+                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Preco minimo</Label>
+                  <Input
+                    placeholder="0,00"
+                    value={filtroPrecoMin}
+                    onChange={(e) => setFiltroPrecoMin(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Preco maximo</Label>
+                  <Input
+                    placeholder="100,00"
+                    value={filtroPrecoMax}
+                    onChange={(e) => setFiltroPrecoMax(e.target.value)}
+                  />
+                </div>
+                <div className="flex items-end gap-2">
+                  <div className="flex items-center gap-2 h-9 px-3 rounded-md border">
+                    <input
+                      type="checkbox"
+                      id="estoqueBaixo"
+                      checked={filtroEstoqueBaixo}
+                      onChange={(e) => setFiltroEstoqueBaixo(e.target.checked)}
+                      className="h-4 w-4 accent-pink-500"
+                    />
+                    <Label htmlFor="estoqueBaixo" className="text-sm whitespace-nowrap">Estoque baixo</Label>
+                  </div>
+                  {temFiltroAtivo && (
+                    <Button variant="ghost" size="sm" onClick={limparFiltros}>Limpar</Button>
+                  )}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
         {/* tabela */}
         <Card>
           <CardHeader>
-            <CardTitle>Estoque ({doces.length} itens)</CardTitle>
+            <CardTitle>Estoque ({filtrados.length}{temFiltroAtivo ? ` de ${doces.length}` : ""} itens)</CardTitle>
           </CardHeader>
           <CardContent>
-            {doces.length === 0 ? (
+            {filtrados.length === 0 ? (
               <p className="text-center text-muted-foreground py-8">
-                Nenhum doce cadastrado ainda.
+                {doces.length === 0 ? "Nenhum doce cadastrado ainda." : "Nenhum doce encontrado com esses filtros."}
               </p>
             ) : (
               <Table>
@@ -281,7 +393,7 @@ export default function DocesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {doces.map((doce) => (
+                  {filtrados.map((doce) => (
                     <TableRow key={doce.id}>
                       <TableCell className="font-mono text-muted-foreground">
                         {doce.id}
