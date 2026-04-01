@@ -14,13 +14,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Package, Users, ShoppingCart, AlertTriangle } from "lucide-react";
-import { Doce, Cliente, Venda } from "@/lib/types";
+import { Doce, Cliente, Venda, Vendedor } from "@/lib/types";
 import { formatarPreco, formatarTelefone } from "@/lib/utils";
 
 export default function RelatoriosPage() {
   const [doces, setDoces] = useState<Doce[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [vendas, setVendas] = useState<Venda[]>([]);
+  const [vendedores, setVendedores] = useState<Vendedor[]>([]);
   const [carregando, setCarregando] = useState(true);
 
   useEffect(() => {
@@ -28,14 +29,16 @@ export default function RelatoriosPage() {
   }, []);
 
   async function carregarDados() {
-    const [resDoces, resClientes, resVendas] = await Promise.all([
+    const [resDoces, resClientes, resVendas, resVendedores] = await Promise.all([
       fetch("/api/doces"),
       fetch("/api/clientes"),
       fetch("/api/vendas"),
+      fetch("/api/vendedores"),
     ]);
     setDoces(await resDoces.json());
     setClientes(await resClientes.json());
     setVendas(await resVendas.json());
+    setVendedores(await resVendedores.json());
     setCarregando(false);
   }
 
@@ -73,6 +76,20 @@ export default function RelatoriosPage() {
       }
     }
     return { total, quantidade };
+  }
+
+  // calcular vendas por vendedor
+  function vendasDoVendedor(vendedorId: number) {
+    let total = 0;
+    let quantidade = 0;
+    for (const v of vendas) {
+      if (v.vendedorId === vendedorId) {
+        total += v.valorTotal;
+        quantidade++;
+      }
+    }
+    const ticketMedio = quantidade > 0 ? total / quantidade : 0;
+    return { total, quantidade, ticketMedio };
   }
 
   // pegar nome do doce/cliente para a tabela de vendas
@@ -285,9 +302,8 @@ export default function RelatoriosPage() {
                   <TableRow>
                     <TableHead className="w-16">ID</TableHead>
                     <TableHead>Cliente</TableHead>
-                    <TableHead>Doce</TableHead>
-                    <TableHead className="text-center">Qtd</TableHead>
-                    <TableHead className="text-right">Valor</TableHead>
+                    <TableHead>Pagamento</TableHead>
+                    <TableHead className="text-right">Valor Total</TableHead>
                     <TableHead className="text-right">Data</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -300,8 +316,7 @@ export default function RelatoriosPage() {
                       <TableCell className="font-medium">
                         {nomeCliente(venda.clienteId)}
                       </TableCell>
-                      <TableCell>{nomeDoce(venda.doceId)}</TableCell>
-                      <TableCell className="text-center">{venda.quantidade}</TableCell>
+                      <TableCell>{venda.formaPagamento || "—"}</TableCell>
                       <TableCell className="text-right font-medium">
                         {formatarPreco(venda.valorTotal)}
                       </TableCell>
@@ -310,6 +325,54 @@ export default function RelatoriosPage() {
                       </TableCell>
                     </TableRow>
                   ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* relatorio de vendas por vendedor */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Vendas por Vendedor</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {vendedores.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">
+                Nenhum vendedor cadastrado ainda.
+              </p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Vendedor</TableHead>
+                    <TableHead className="text-center">Vendas</TableHead>
+                    <TableHead className="text-right">Total Vendido</TableHead>
+                    <TableHead className="text-right">Ticket Medio</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {vendedores.map((vendedor) => {
+                    const stats = vendasDoVendedor(vendedor.id);
+                    return (
+                      <TableRow key={vendedor.id}>
+                        <TableCell className="font-medium">{vendedor.nome}</TableCell>
+                        <TableCell className="text-center">
+                          {stats.quantidade > 0 ? (
+                            <Badge variant="secondary">{stats.quantidade}</Badge>
+                          ) : (
+                            <span className="text-muted-foreground">0</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          {stats.total > 0 ? formatarPreco(stats.total) : "—"}
+                        </TableCell>
+                        <TableCell className="text-right text-muted-foreground">
+                          {stats.ticketMedio > 0 ? formatarPreco(stats.ticketMedio) : "—"}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             )}
