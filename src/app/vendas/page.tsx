@@ -5,6 +5,7 @@ import { AppLayout } from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -28,10 +29,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Doce, Cliente, Venda, Vendedor } from "@/lib/types";
 import { formatarPreco } from "@/lib/utils";
+
+// item no carrinho (antes de confirmar a venda)
+interface ItemCarrinho {
+  doceId: number;
+  quantidade: number;
+}
 
 export default function VendasPage() {
   const [vendas, setVendas] = useState<Venda[]>([]);
@@ -42,11 +49,14 @@ export default function VendasPage() {
 
   // campos do formulario de venda
   const [clienteId, setClienteId] = useState("");
-  const [doceId, setDoceId] = useState("");
   const [vendedorId, setVendedorId] = useState("");
-  const [quantidade, setQuantidade] = useState("");
   const [formaPagamento, setFormaPagamento] = useState("");
   const [statusPagamento, setStatusPagamento] = useState("");
+
+  // carrinho de itens
+  const [itensCarrinho, setItensCarrinho] = useState<ItemCarrinho[]>([]);
+  const [doceIdParaAdicionar, setDoceIdParaAdicionar] = useState("");
+  const [quantidadeParaAdicionar, setQuantidadeParaAdicionar] = useState("");
 
   useEffect(() => {
     carregarDados();
@@ -54,7 +64,6 @@ export default function VendasPage() {
 
   async function carregarDados() {
     try {
-      // carrega tudo de uma vez
       const [resVendas, resDoces, resClientes, resVendedores] = await Promise.all([
         fetch("/api/vendas"),
         fetch("/api/doces"),
@@ -76,13 +85,47 @@ export default function VendasPage() {
     }
   }
 
-  async function realizarVenda() {
-    if (!clienteId || !doceId || !vendedorId || !quantidade || !formaPagamento) {
-      toast.error("Preencha todos os campos obrigatorios");
+  // adiciona um doce ao carrinho
+  function adicionarAoCarrinho() {
+    if (!doceIdParaAdicionar || !quantidadeParaAdicionar) {
+      toast.error("Selecione o doce e a quantidade");
       return;
     }
 
-    // apenas validar status se for um dos pagamentos que requer
+    const qtd = parseInt(quantidadeParaAdicionar);
+    if (qtd <= 0) {
+      toast.error("Quantidade deve ser maior que zero");
+      return;
+    }
+
+    const doceId = parseInt(doceIdParaAdicionar);
+
+    // verifica se o doce ja ta no carrinho
+    const existente = itensCarrinho.find((item) => item.doceId === doceId);
+    if (existente) {
+      // soma a quantidade
+      setItensCarrinho(itensCarrinho.map((item) =>
+        item.doceId === doceId ? { ...item, quantidade: item.quantidade + qtd } : item
+      ));
+    } else {
+      setItensCarrinho([...itensCarrinho, { doceId, quantidade: qtd }]);
+    }
+
+    setDoceIdParaAdicionar("");
+    setQuantidadeParaAdicionar("");
+  }
+
+  // remove um item do carrinho
+  function removerDoCarrinho(doceId: number) {
+    setItensCarrinho(itensCarrinho.filter((item) => item.doceId !== doceId));
+  }
+
+  async function realizarVenda() {
+    if (!clienteId || !vendedorId || !formaPagamento || itensCarrinho.length === 0) {
+      toast.error("Preencha todos os campos e adicione pelo menos um doce");
+      return;
+    }
+
     let finalStatus = statusPagamento;
     if (["cartao", "boleto", "pix", "berries"].includes(formaPagamento)) {
       if (!finalStatus) {
@@ -96,11 +139,10 @@ export default function VendasPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         clienteId: parseInt(clienteId),
-        doceId: parseInt(doceId),
         vendedorId: parseInt(vendedorId),
-        quantidade: parseInt(quantidade),
         formaPagamento,
         statusPagamento: finalStatus || undefined,
+        itens: itensCarrinho,
       }),
     });
 
@@ -122,23 +164,17 @@ export default function VendasPage() {
     }
     setDialogAberto(false);
     setClienteId("");
-    setDoceId("");
     setVendedorId("");
-    setQuantidade("");
     setFormaPagamento("");
     setStatusPagamento("");
+    setItensCarrinho([]);
     carregarDados();
   }
 
-  // funcoes auxiliares pra pegar nome pelo id
+  // funcoes auxiliares
   function nomeCliente(id: number): string {
     const c = clientes.find((c) => c.id === id);
     return c ? c.nome : `Cliente #${id}`;
-  }
-
-  function nomeDoce(id: number): string {
-    const d = doces.find((d) => d.id === id);
-    return d ? d.nome : `Doce #${id}`;
   }
 
   function nomeVendedor(id: number | null): string {
@@ -150,7 +186,7 @@ export default function VendasPage() {
   function getNomeFormaPagamento(forma: string | null): string {
     if (!forma) return "—";
     const formas: Record<string, string> = {
-      cartao: "Cartão",
+      cartao: "Cartao",
       boleto: "Boleto",
       pix: "PIX",
       berries: "Berries",
@@ -161,42 +197,42 @@ export default function VendasPage() {
 
   function getBadgeStatus(status?: string): string {
     const statuses: Record<string, string> = {
-      confirmado: "🟢 Confirmado",
-      pendente: "🟡 Pendente",
-      recusado: "🔴 Recusado",
+      confirmado: "Confirmado",
+      pendente: "Pendente",
+      recusado: "Recusado",
     };
     return statuses[status || ""] || "—";
   }
 
-  // calcula desconto e resumo da venda em tempo real
-  const DESCONTO_MAXIMO = 15; // limite maximo de desconto (%)
+  // calcula resumo do carrinho com desconto
+  const DESCONTO_MAXIMO = 15;
 
-  function calcularResumoVenda() {
-    if (!clienteId || !doceId || !quantidade) return null;
+  function calcularResumo() {
+    if (itensCarrinho.length === 0 || !clienteId) return null;
 
     const cliente = clientes.find((c) => c.id === parseInt(clienteId));
-    const doce = doces.find((d) => d.id === parseInt(doceId));
-    const qtd = parseInt(quantidade);
+    if (!cliente) return null;
 
-    if (!cliente || !doce || qtd <= 0) return null;
+    let valorBruto = 0;
+    for (const item of itensCarrinho) {
+      const doce = doces.find((d) => d.id === item.doceId);
+      if (doce) valorBruto += doce.preco * item.quantidade;
+    }
 
-    // calcula desconto: 5% por flag, maximo 15%
-    let descontoSemLimite = 0;
-    if (cliente.torceFlamengo) descontoSemLimite += 5;
-    if (cliente.assisteOnePiece) descontoSemLimite += 5;
-    if (cliente.deSousa) descontoSemLimite += 5;
+    let desconto = 0;
+    if (cliente.torceFlamengo) desconto += 5;
+    if (cliente.assisteOnePiece) desconto += 5;
+    if (cliente.deSousa) desconto += 5;
+    const atingiuLimite = desconto > DESCONTO_MAXIMO;
+    desconto = Math.min(desconto, DESCONTO_MAXIMO);
 
-    const desconto = Math.min(descontoSemLimite, DESCONTO_MAXIMO);
-    const atingiuLimite = descontoSemLimite > DESCONTO_MAXIMO;
-
-    const valorBruto = doce.preco * qtd;
     const valorDesconto = valorBruto * desconto / 100;
     const valorFinal = valorBruto - valorDesconto;
 
-    return { cliente, doce, qtd, desconto, atingiuLimite, valorBruto, valorDesconto, valorFinal };
+    return { cliente, desconto, atingiuLimite, valorBruto, valorDesconto, valorFinal };
   }
 
-  const resumo = calcularResumoVenda();
+  const resumo = calcularResumo();
 
   return (
     <AppLayout>
@@ -206,12 +242,19 @@ export default function VendasPage() {
             <h1 className="text-3xl font-bold">Vendas</h1>
             <p className="text-muted-foreground mt-1">Registre e visualize as vendas</p>
           </div>
-          <Dialog open={dialogAberto} onOpenChange={setDialogAberto}>
+          <Dialog open={dialogAberto} onOpenChange={(open) => {
+            setDialogAberto(open);
+            if (!open) {
+              setItensCarrinho([]);
+              setDoceIdParaAdicionar("");
+              setQuantidadeParaAdicionar("");
+            }
+          }}>
             <DialogTrigger render={<Button />}>
               <Plus className="mr-2 h-4 w-4" />
               Nova Venda
             </DialogTrigger>
-            <DialogContent className="max-w-md">
+            <DialogContent className="max-w-lg">
               <DialogHeader>
                 <DialogTitle>Registrar Venda</DialogTitle>
               </DialogHeader>
@@ -230,11 +273,6 @@ export default function VendasPage() {
                       ))}
                     </SelectContent>
                   </Select>
-                  {clientes.length === 0 && (
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Cadastre um cliente primeiro
-                    </p>
-                  )}
                 </div>
                 <div>
                   <Label>Vendedor</Label>
@@ -250,48 +288,82 @@ export default function VendasPage() {
                       ))}
                     </SelectContent>
                   </Select>
-                  {vendedores.length === 0 && (
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Cadastre um vendedor primeiro
-                    </p>
-                  )}
                 </div>
-                <div>
-                  <Label>Doce</Label>
-                  <Select value={doceId} onValueChange={(v) => setDoceId(v ?? "")}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o doce" />
-                    </SelectTrigger>
-                    <SelectContent className="w-[var(--radix-select-trigger-width)]">
-                      {doces.map((d) => (
-                        <SelectItem key={d.id} value={d.id.toString()}>
-                          <div className="flex flex-col">
-                            <span>{d.nome}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {formatarPreco(d.preco)} — estoque: {d.estoque}
-                            </span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {doces.length === 0 && (
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Cadastre um doce primeiro
-                    </p>
-                  )}
+
+                {/* adicionar itens ao carrinho */}
+                <div className="space-y-2">
+                  <Label>Adicionar doces</Label>
+                  <div className="flex gap-2">
+                    <Select value={doceIdParaAdicionar} onValueChange={(v) => setDoceIdParaAdicionar(v ?? "")}>
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder="Selecione o doce" />
+                      </SelectTrigger>
+                      <SelectContent className="w-[var(--radix-select-trigger-width)]">
+                        {doces.map((d) => (
+                          <SelectItem key={d.id} value={d.id.toString()}>
+                            <div className="flex flex-col">
+                              <span>{d.nome}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {formatarPreco(d.preco)} — estoque: {d.estoque}
+                              </span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="number"
+                      min="1"
+                      placeholder="Qtd"
+                      className="w-20"
+                      value={quantidadeParaAdicionar}
+                      onChange={(e) => setQuantidadeParaAdicionar(e.target.value)}
+                    />
+                    <Button variant="secondary" onClick={adicionarAoCarrinho}>
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
-                <div>
-                  <Label htmlFor="quantidade">Quantidade</Label>
-                  <Input
-                    id="quantidade"
-                    type="number"
-                    min="1"
-                    value={quantidade}
-                    onChange={(e) => setQuantidade(e.target.value)}
-                    placeholder="1"
-                  />
-                </div>
+
+                {/* lista de itens no carrinho */}
+                {itensCarrinho.length > 0 && (
+                  <div className="rounded-lg border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Doce</TableHead>
+                          <TableHead className="text-center w-16">Qtd</TableHead>
+                          <TableHead className="text-right">Subtotal</TableHead>
+                          <TableHead className="w-10"></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {itensCarrinho.map((item) => {
+                          const doce = doces.find((d) => d.id === item.doceId);
+                          const subtotal = doce ? doce.preco * item.quantidade : 0;
+                          return (
+                            <TableRow key={item.doceId}>
+                              <TableCell className="font-medium">{doce?.nome || "?"}</TableCell>
+                              <TableCell className="text-center">{item.quantidade}</TableCell>
+                              <TableCell className="text-right">{formatarPreco(subtotal)}</TableCell>
+                              <TableCell>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  onClick={() => removerDoCarrinho(item.doceId)}
+                                >
+                                  <Trash2 className="h-3 w-3 text-destructive" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+
                 <div>
                   <Label>Forma de Pagamento</Label>
                   <Select value={formaPagamento} onValueChange={(v) => {
@@ -302,7 +374,7 @@ export default function VendasPage() {
                       <SelectValue placeholder="Selecione a forma de pagamento" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="cartao">Cartão</SelectItem>
+                      <SelectItem value="cartao">Cartao</SelectItem>
                       <SelectItem value="boleto">Boleto</SelectItem>
                       <SelectItem value="pix">PIX</SelectItem>
                       <SelectItem value="berries">Berries</SelectItem>
@@ -325,14 +397,13 @@ export default function VendasPage() {
                     </Select>
                   </div>
                 )}
-                {/* resumo da venda em tempo real */}
-                {resumo && (
+
+                {/* resumo com desconto */}
+                {resumo && itensCarrinho.length > 0 && (
                   <div className="rounded-lg border p-3 space-y-2 bg-muted/30">
-                    <p className="text-sm font-medium">Resumo da venda</p>
+                    <p className="text-sm font-medium">Resumo da venda ({itensCarrinho.length} {itensCarrinho.length === 1 ? "item" : "itens"})</p>
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">
-                        {resumo.doce.nome} x{resumo.qtd}
-                      </span>
+                      <span className="text-muted-foreground">Subtotal</span>
                       <span>{formatarPreco(resumo.valorBruto)}</span>
                     </div>
                     {resumo.desconto > 0 && (
@@ -363,7 +434,7 @@ export default function VendasPage() {
                   </div>
                 )}
 
-                <Button onClick={realizarVenda} className="w-full">
+                <Button onClick={realizarVenda} className="w-full" disabled={itensCarrinho.length === 0}>
                   Confirmar Venda
                 </Button>
               </div>
@@ -389,8 +460,6 @@ export default function VendasPage() {
                       <TableHead className="w-12">ID</TableHead>
                       <TableHead>Cliente</TableHead>
                       <TableHead>Vendedor</TableHead>
-                      <TableHead>Doce</TableHead>
-                      <TableHead className="w-12">Qtd</TableHead>
                       <TableHead className="text-right">Total</TableHead>
                       <TableHead>Pagamento</TableHead>
                       <TableHead>Status</TableHead>
@@ -405,8 +474,6 @@ export default function VendasPage() {
                         </TableCell>
                         <TableCell>{nomeCliente(venda.clienteId)}</TableCell>
                         <TableCell>{nomeVendedor(venda.vendedorId)}</TableCell>
-                        <TableCell>{nomeDoce(venda.doceId)}</TableCell>
-                        <TableCell className="text-center">{venda.quantidade}</TableCell>
                         <TableCell className="text-right font-medium">
                           {formatarPreco(venda.valorTotal)}
                         </TableCell>
