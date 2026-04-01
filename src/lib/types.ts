@@ -31,11 +31,18 @@ export interface Vendedor {
 export interface Venda {
   id: number;
   clienteId: number;
-  doceId: number;
   vendedorId: number;
-  quantidade: number;
   valorTotal: number;
   dataVenda: string;
   formaPagamento: "cartao" | "boleto" | "pix" | "berries" | "dinheiro";
   statusPagamento?: "confirmado" | "pendente" | "recusado";
+}
+
+export interface ItemVenda {
+  id: number;
+  vendaId: number;
+  doceId: number;
+  doceNome: string;
+  quantidade: number;
+  subtotal: number;
 }

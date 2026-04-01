@@ -276,16 +276,49 @@ export class GerenciadorDoceria {
     return vendas;
   }
 
-  // registra uma venda usando a stored procedure sp_registrar_venda
-  // a procedure faz tudo: valida cliente/doce/vendedor, verifica estoque,
-  // calcula desconto automatico (5% por flag) e insere a venda
+  async buscarVendasPorVendedor(vendedorId: number) {
+    const resultado = await pool.query(
+      "SELECT * FROM vendas WHERE vendedor_id = $1 ORDER BY id",
+      [vendedorId]
+    );
+    let vendas = [];
+    for (const row of resultado.rows) {
+      vendas.push(this.formatarVenda(row));
+    }
+    return vendas;
+  }
+
+  // busca os itens de uma venda
+  async buscarItensVenda(vendaId: number) {
+    const resultado = await pool.query(
+      `SELECT iv.*, d.nome as doce_nome
+       FROM itens_venda iv
+       JOIN doces d ON iv.doce_id = d.id
+       WHERE iv.venda_id = $1 ORDER BY iv.id`,
+      [vendaId]
+    );
+    let itens = [];
+    for (const row of resultado.rows) {
+      itens.push({
+        id: row.id,
+        vendaId: row.venda_id,
+        doceId: row.doce_id,
+        doceNome: row.doce_nome,
+        quantidade: row.quantidade,
+        subtotal: parseFloat(row.subtotal),
+      });
+    }
+    return itens;
+  }
+
+  // registra uma venda com multiplos itens usando stored procedure
+  // a procedure valida tudo, calcula desconto e insere venda + itens atomicamente
   async registrarVenda(
     clienteId: number,
-    doceId: number,
     vendedorId: number,
-    quantidade: number,
     formaPagamento: "cartao" | "boleto" | "pix" | "berries" | "dinheiro",
-    statusPagamento?: "confirmado" | "pendente" | "recusado"
+    statusPagamento: string | undefined,
+    itens: { doceId: number; quantidade: number }[]
   ) {
     // define status padrao pra formas de pagamento eletronicas
     let finalStatus = statusPagamento;
@@ -293,10 +326,14 @@ export class GerenciadorDoceria {
       finalStatus = "pendente";
     }
 
+    // monta os arrays pra passar pra procedure
+    const doceIds = itens.map((item) => item.doceId);
+    const quantidades = itens.map((item) => item.quantidade);
+
     try {
       const resultado = await pool.query(
         `SELECT * FROM sp_registrar_venda($1, $2, $3, $4, $5, $6)`,
-        [clienteId, doceId, vendedorId, quantidade, formaPagamento, finalStatus || null]
+        [clienteId, vendedorId, formaPagamento, finalStatus || null, doceIds, quantidades]
       );
 
       const row = resultado.rows[0];
@@ -306,7 +343,6 @@ export class GerenciadorDoceria {
       };
     } catch (erro: any) {
       // a procedure levanta RAISE EXCEPTION com mensagens claras
-      // ex: "Cliente nao encontrado", "Estoque insuficiente"
       if (erro.message) {
         return erro.message;
       }
@@ -474,9 +510,7 @@ export class GerenciadorDoceria {
     return {
       id: row.id,
       clienteId: row.cliente_id,
-      doceId: row.doce_id,
       vendedorId: row.vendedor_id,
-      quantidade: row.quantidade,
       valorTotal: parseFloat(row.valor_total),
       dataVenda: new Date(row.data_venda).toLocaleDateString("pt-BR"),
       formaPagamento: row.forma_pagamento,
